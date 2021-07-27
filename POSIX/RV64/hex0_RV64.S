@@ -46,7 +46,7 @@ _start:
 
     # If we only have 2 arguments, don't use the third (it's not set)
     li t0, 2
-    ld a0, 0(sp)         # Get number of the args
+    ld a0, 0(sp)                    # Get number of the args
     blt a0, t0, terminate           # No input file provided 
     beq a0, t0, after_file_open     # No output file provided. Use stdout
 
@@ -56,8 +56,8 @@ open_output_file:
     li a7, 56             # sys_openat
     li a0, -100           # AT_FDCWD
     ld a1, 24(sp)         # Output file (argument 3)
-    li a2, 00002101
-    # O_APPEND  00002000
+    li a2, 00001101
+    # O_TRUNC   00001000
     # O_CREAT   00000100
     # O_WRONLY  00000001
     # OCTAL!

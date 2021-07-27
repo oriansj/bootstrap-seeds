@@ -103,8 +103,8 @@ F3 00              ## e_machine Indicating RISC-V
     93 08 80 03    ;li a7,56         (addi a7,zero,0)        # sys_openat
     13 05 C0 F9    ;li a0,-100       (addi a0,zero,-100)     # AT_FDCWD
     83 35 81 01    ;ld a1,24(sp)                             # Output file (argument 3)
-    13 06 10 44    ;li a2, 00002101  (addi a2,zero,00002101) # Mode of the file opening
-               # O_APPEND  00002000
+    13 06 10 24    ;li a2, 00001101  (addi a2,zero,00001101) # Mode of the file opening
+               # O_TRUNC   00001000
                # O_CREAT   00000100
                # O_WRONLY  00000001
 
