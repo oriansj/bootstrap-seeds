@@ -57,8 +57,8 @@
 00 80 04 08                     # ph_vaddr
 00 80 04 08                     # ph_physaddr
 
-65 01 00 00                     # ph_filesz
-65 01 00 00                     # ph_memsz
+27 01 00 00                     # ph_filesz
+27 01 00 00                     # ph_memsz
 
 07 00 00 00                     # ph_flags: PF-X|PF-W|PF-R = 7
 01 00 00 00                     # ph_align
@@ -72,60 +72,62 @@
 	58                          # POP_EAX                     ; Get the number of arguments
 	5B                          # POP_EBX                     ; Get the program name
 	5B                          # POP_EBX                     ; Get the actual input name
-	B9 00000000                 # LOADI32_ECX %0              ; prepare read_only
-	BA 00000000                 # LOADI32_EDX %0              ; Extra sure
-	B8 05000000                 # LOADI32_EAX %5              ; the syscall number for open()
+	31C9                        # XOR_ECX_ECX                 ; prepare read_only, ecx = 0
+	31D2                        # XOR_EDX_EDX %0              ; Extra sure, edx = 0
+	6A05                        # PUSH_5                      ; prepare to set eax to 5
+	58                          # POP_EAX                     ; the syscall number for open()
 	CD80                        # INT_80                      ; Now open that damn file
-	A3 55810408                 # STORE32_Absolute32_eax &fin ; Preserve the file pointer we were given
+	A3 1F810408                 # STORE32_Absolute32_eax &fin ; Preserve the file pointer we were given
 
 	5B                          # POP_EBX                     ; Get the actual output name
 	B9 41020000                 # LOADI32_ECX %577            ; Prepare file as O_WRONLY|O_CREAT|O_TRUNC
 	BA C0010000                 # LOADI32_EDX %448            ; Prepare file as RWX for owner only (700 in octal)
-	B8 05000000                 # LOADI32_EAX %5              ; the syscall number for open()
+	6A05                        # PUSH_5                      ; prepare to set eax to 5
+	58                          # POP_EAX                     ; the syscall number for open()
 	CD80                        # INT_80                      ; Now open that damn file
-	A3 59810408                 # STORE32_Absolute32_eax &fout ; Preserve the file pointer we were given
+	A3 23810408                 # STORE32_Absolute32_eax &fout ; Preserve the file pointer we were given
 
 	; Our flag for byte processing
-	BD FFFFFFFF                 # LOADI32_EBP %-1
+	6AFF                        # PUSH_-1
+	5D                          # POP_EBP                     ; ebp = -1
 
 	; temp storage for the sum
-	BF 00000000
+	31FF                        # XOR_EDI_EDI                 ; edi = 0
 
-#:loop ; (0x804808E)
+#:loop ; (0x804807F)
 	; Read a byte
-	E8 9E000000                 # CALL %Read_byte
+	E8 84000000                 # CALL %Read_byte
 
 	; process byte
-	E8 29000000                 # CALL %hex
+	E8 1D000000                 # CALL %hex
 
 	; Deal with -1 values
-	83F8 00                     # CMPI8_EAX !0
-	7C F1                       # JL8 !loop
+	85C0                        # TEST
+	7C F2                       # JL8 !loop
 
 	; deal with toggle
-	83FD 00                     # CMPI8_EBP !0
-	7D 09                       # JGE8 !print
+	85ED                        # TEST_EBP_EBP                ; jump if ebp >= 0
+	7D 06                       # JGE8 !print
 
 	; process first byte of pair
 	89C7                        # COPY_EAX_to_EDI
-	BD 00000000                 # LOADI32_EBP %0
-	EB E3                       # JMP8 !loop
+	31ED                        # XOR_EBP_EBP                 ; ebp = 0
+	EB E8                       # JMP8 !loop
 
 ; process second byte of pair
-#:print ; (0x80480AB)
+#:print ; (0x8048097)
 	; update the sum and store in output
 	C1E7 04                     # SHLI8_EDI !4
 	01F8                        # ADD_EDI_to_EAX
-	A2 5D810408                 # STORE8_Absolute32_al &output
 
 	; flip the toggle
-	BD FFFFFFFF                 # LOADI32_EBP %-1
+	6AFF                        # PUSH_-1
+	5D                          # POP_EBP                     ; ebp = -1
+	E8 51000000                 # CALL %write_byte
 
-	E8 5A000000                 # CALL %write_byte
+	EB D9                       # JMP8 !loop
 
-	EB CD                       # JMP8 !loop
-
-#:hex ; (0x80480C1)
+#:hex ; (0x80480A6)
 	; Purge Comment Lines (#)
 	83F8 23                     # CMPI8_EAX !35
 	74 25                       # JE8 !purge_comment
@@ -136,96 +138,102 @@
 
 	; deal all ascii less than 0
 	83F8 30                     # CMPI8_EAX !48
-	7C 37                       # JL8 !ascii_other
+	7C 35                       # JL8 !ascii_other
 
 	; deal with 0-9
 	83F8 3A                     # CMPI8_EAX !58
-	7C 26                       # JL8 !ascii_num
+	7C 24                       # JL8 !ascii_num
 
 	; deal with all ascii less than A
 	83F8 41                     # CMPI8_EAX !65
-	7C 2D                       # JL8 !ascii_other
+	7C 2B                       # JL8 !ascii_other
 
 	; deal with A-F
 	83F8 47                     # CMPI8_EAX !71
-	7C 24                       # JL8 !ascii_high
+	7C 22                       # JL8 !ascii_high
 
 	;deal with all ascii less than a
 	83F8 61                     # CMPI8_EAX !97
-	7C 23                       # JL8 !ascii_other
+	7C 21                       # JL8 !ascii_other
 
 	;deal with a-f
 	83F8 67                     # CMPI8_EAX !103
-	7C 16                       # JL8 !ascii_low
+	7C 14                       # JL8 !ascii_low
 
 	; The rest that remains needs to be ignored
-	EB 1C                       # JMP8 !ascii_other
+	EB 1A                       # JMP8 !ascii_other
 
-#:purge_comment ; (0x80480EB)
+#:purge_comment ; (0x80480D0)
 	; Read a byte
-	E8 41000000                 # CALL %Read_byte
+	E8 33000000                 # CALL %Read_byte
 
 	; Loop if not LF
 	83F8 0A                     # CMPI8_EAX !10
 	75 F6                       # JNE8 !purge_comment
 
 	; Otherwise return -1
-	B8 FFFFFFFF                 # LOADI32_EAX %-1
+	6AFF                        # PUSH_-1
+	58                          # POP_EAX                     ; eax = -1
 	C3                          # RET
 
-#:ascii_num ; (0x80480FB)
+#:ascii_num ; (0x80480DE)
 	83E8 30                     # SUBI8_EAX !48
 	C3                          # RET
 
-#:ascii_low ; (0x80480FF)
+#:ascii_low ; (0x80480E2)
 	83E8 57                     # SUBI8_EAX !87
 	C3                          # RET
 
-#:ascii_high ; (0x8048103)
+#:ascii_high ; (0x80480E6)
 	83E8 37                     # SUBI8_EAX !55
 	C3                          # RET
 
-#:ascii_other ; (0x8048107)
-	B8 FFFFFFFF                 # LOADI32_EAX %-1
+#:ascii_other ; (0x80480EA)
+	6AFF                        # PUSH_-1
+	58                          # POP_EAX                     ; eax = -1
 	C3                          # RET
 
-#:Done ; (0x804810D)
+#:Done ; (0x80480EE)
 	; program completed Successfully
-	BB 00000000                 # LOADI32_EBX %0              ; All is well
-	B8 01000000                 # LOADI32_EAX %1              ; put the exit syscall number in eax
+	31DB                        # XOR_EBX_EBX                 ; All is well, ebx = 0
+	6A01                        # PUSH_1
+	58                          # POP_EAX                     ; put the exit syscall number in eax
 	CD80                        # INT_80                      ; Call it a good day
 
-#:write_byte ; (0x8048119)
+; Writes byte stored in al
+#:write_byte ; (0x80480F5)
 	; Print our Hex
-	BA 01000000                 # LOADI32_EDX %1              ; set the size of chars we want
-	B9 5D810408                 # LOADI32_ECX &output         ; What we are writing
-	8B1D 59810408               # LOAD32_Absolute32_ebx &fout ; Where are we writing to
-	B8 04000000                 # LOADI32_EAX %4              ; the syscall number for write
+	6A01                        # PUSH_1                      ; prepare to set edx to 1
+	5A                          # POP_EDX                     ; set the size of chars we want
+	50                          # PUSH_EAX                    ; Move output to stack
+	89E1                        # COPY_ESP_to_ECX             ; What we are writing
+	8B1D 23810408               # LOAD32_Absolute32_ebx &fout ; Where are we writing to
+	6A04                        # PUSH_4                      ; prepare to set eax to 4
+	58                          # POP_EAX                     ; the syscall number for write
 	CD80                        # INT_80                      ; call the Kernel
+	5B                          # POP_EBX                     ; deallocate stack
 	C3                          # RET
 
-#:Read_byte ; (0x8048131)
+#:Read_byte ; (0x8048108)
 	; Attempt to read 1 byte from Input file
-	BA 01000000                 # LOADI32_EDX %1              ; set the size of chars we want
-	B9 61810408                 # LOADI32_ECX &input          ; Where to put it
-	8B1D 55810408               # LOAD32_Absolute32_ebx &fin  ; Where are we reading from
-	B8 03000000                 # LOADI32_EAX %3              ; the syscall number for read
+	6A01                        # PUSH_1                      ; prepare to set edx to 1
+	5A                          # POP_EDX                     ; set the size of chars we want
+	53                          # PUSH_EBX                    ; allocate stack
+	89E1                        # COPY_ESP_to_ECX             ; Where to put it
+	8B1D 1F810408               # LOAD32_Absolute32_ebx &fin  ; Where are we reading from
+	6A03                        # PUSH_3                      ; prepare to set eax to 3
+	58                          # POP_EAX                     ; the syscall number for read
 	CD80                        # INT_80                      ; call the Kernel
 
 	85C0                        # TEST                        ; check what we got
-	74 C1                       # JE8 !Done                   ; Got EOF call it done
+	74 D1                       # JE8 !Done                   ; Got EOF call it done
 
 	; load byte
-	A0 61810408                 # LOAD8_Absolute32_al &input  ; load char
-	0FB6C0                      # MOVZX                       ; We have to zero extend it to use it
+	58                          # POP_EAX                     ; load char
 	C3                          # RET
 
-#:fin ; (0x8048155)
+#:fin ; (0x804811F)
 	00000000                    # NULL
-#:fout ; (0x8048159)
-	00000000                    # NULL
-#:output ; (0x804815D)
-	00000000                    # NULL
-#:input ; (0x8048161)
+#:fout ; (0x8048123)
 	00000000                    # NULL
 #:ELF_end
