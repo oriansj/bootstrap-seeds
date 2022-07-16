@@ -1,5 +1,6 @@
 ### Copyright (C) 2016 Jeremiah Orians
 ### Copyright (C) 2017 Jan Nieuwenhuizen <janneke@gnu.org>
+### Copyright (C) 2022 Andrius Štikonas <andrius@stikonas.eu>
 ### This file is part of stage0.
 ###
 ### stage0 is free software: you can redistribute it and/or modify
@@ -59,8 +60,8 @@
 00 00 60 00 00 00 00 00 ## p_vaddr
 00 00 60 00 00 00 00 00 ## p_physaddr
 
-95 01 00 00 00 00 00 00 ## p_filesz
-95 01 00 00 00 00 00 00 ## p_memsz
+4E 01 00 00 00 00 00 00 ## p_filesz
+4E 01 00 00 00 00 00 00 ## p_memsz
 
 01 00 00 00 00 00 00 00 ## Required alignment
 
@@ -73,57 +74,60 @@
 	58                  ; POP_RAX         # Get the number of arguments
 	5F                  ; POP_RDI         # Get the program name
 	5F                  ; POP_RDI         # Get the actual input name
-	BE 00000000         ; LOADI32_ESI %0  # prepare read_only
-	B8 02000000         ; LOADI32_EAX %2  # the syscall number for open()
+	31F6                ; XOR_ESI_ESI     # prepare read_only, rsi = 0
+	6A02                ; PUSH_2          # prepare syscall number
+	58                  ; POP_RAX         # the syscall number for open()
 	0F05                ; SYSCALL         # Now open that damn file
 	4989C1              ; COPY_RAX_to_R9  # Preserve the file pointer we were given
 
 	5F                  ; POP_RDI         # Get the actual output name
 	BE 41020000         ; LOADI32_ESI %577 # Prepare file as O_WRONLY|O_CREAT|O_TRUNC
 	BA C0010000         ; LOADI32_EDX %448 # Prepare file as RWX for owner only (700 in octal)
-	B8 02000000         ; LOADI32_EAX %2  # the syscall number for open()
+	6A02                ; PUSH_2          # prepare syscall number
+	58                  ; POP_RAX         # the syscall number for open()
 	0F05                ; SYSCALL         # Now open that damn file
 	4989C2              ; COPY_RAX_to_R10 # Preserve the file pointer we were given
 
 	# Our flag for byte processing
-	49C7C7 FFFFFFFF     ; LOADI32_R15 %-1
+	6AFF                ; PUSH_-1
+	415F                ; POP_R15         # r15 = -1
 
 	# temp storage for the sum
-	49C7C6 00000000     ; LOADI32_R14 %0
+	4531F6              ; XOR_R14D_R14D   # r14 = 0
 
 #:loop
 	# Read a byte
-	E8 BA000000         ; CALLI32 %read_byte
+	E8 95000000         ; CALLI32 %read_byte
 
 	# process byte
-	E8 34000000         ; CALLI32 %hex
+	E8 24000000         ; CALLI32 %hex
 
 	# deal with -1 values
-	4883F8 00           ; CMP_RAX_Immediate8 !0
-	7C F0               ; JL8 !loop
+	4885C0              ; TEST_RAX_RAX
+	7C F1               ; JL8 !loop
 
 	# deal with toggle
-	4983FF 00           ; CMP_R15_Immediate8 !0
-	7D 0C               ; JGE8 !print
+	4D85FF              ; TEST_R15_R15    # jump if r15 >= 0
+	7D 08               ; JGE8 !print
 
 	# process first byte of pair
 	4989C6              ; MOVE_R14_RAX
-	49C7C7 00000000     ; LOADI32_R15 %0
-	EB DE               ; JMP8 !loop
+	4531FF              ; XOR_R15D_R15D   # r15 = 0
+	EB E4               ; JMP8 !loop
 
 # process second byte of pair
 #:print
 	# update the sum and store in output
 	49C1E6 04           ; SHL_R14_Immediate8 !4
 	4C01F0              ; ADD_RAX_R14
-	880425 68016000     ; STORE8_al_Absolute32 &output
 
 	# flip the toggle
-	49C7C7 FFFFFFFF     ; LOADI32_R15 %-1
+	6AFF                ; PUSH_-1
+	415F                ; POP_R15         # r15 = -1
 
-	E8 6A000000         ; CALLI32 %write_byte
+	E8 5D000000         ; CALLI32 %write_byte
 
-	EB C2               ; JMP8 !loop
+	EB D2               ; JMP8 !loop
 
 #:hex
 	# Purge Comment Lines (#)
@@ -136,99 +140,97 @@
 
 	# deal all ascii less than '0'
 	4883F8 30           ; CMP_RAX_Immediate8 !48
-	7C 42               ; JL8 !ascii_other
+	7C 3E               ; JL8 !ascii_other
 
 	# deal with 0-9
 	4883F8 3A           ; CMP_RAX_Immediate8 !58
-	7C 2D               ; JL8 !ascii_num
+	7C 29               ; JL8 !ascii_num
 
 	# deal with all ascii less than 'A'
 	4883F8 41           ; CMP_RAX_Immediate8 !65
-	7C 36               ; JL8 !ascii_other
+	7C 32               ; JL8 !ascii_other
 
 	# deal with 'A'-'F'
 	4883F8 47           ; CMP_RAX_Immediate8 !71
-	7C 2B               ; JL8 !ascii_high
+	7C 27               ; JL8 !ascii_high
 
 	# deal with all ascii less than 'a'
 	4883F8 61           ; CMP_RAX_Immediate8 !97
-	7C 2A               ; JL8 !ascii_other
+	7C 26               ; JL8 !ascii_other
 
 	#deal with 'a'-'f'
 	4883F8 67           ; CMP_RAX_Immediate8 !103
-	7C 1A               ; JL8 !ascii_low
+	7C 16               ; JL8 !ascii_low
 
 	# The rest that remains needs to be ignored
-	EB 22               ; JMP8 !ascii_other
+	EB 1E               ; JMP8 !ascii_other
 
 #:purge_comment
 	# Read a byte
-	E8 4A000000         ; CALLI32 %read_byte
+	E8 35000000         ; CALLI32 %read_byte
 
 	# Loop if not LF
 	4883F8 0A           ; CMP_RAX_Immediate8 !10
 	75 F5               ; JNE8 !purge_comment
 
-
 	# Otherwise return -1
-	48C7C0 FFFFFFFF     ; LOADI32_RAX %-1
-	C3                  ; RETQ
+	6AFF                ; PUSH_-1
+	58                  ; POP_RAX         # rax = -1
+	C3                  ; RET
 
 #:ascii_num
 	4883E8 30           ; SUB_RAX_Immediate8 !48
-	C3                  ; RETQ
+	C3                  ; RET
 
 #:ascii_low
 	4883E8 57           ; SUB_RAX_Immediate8 !87
-	C3                  ; RETQ
+	C3                  ; RET
 
 #:ascii_high
 	4883E8 37           ; SUB_RAX_Immediate8 !55
-	C3                  ; RETQ
+	C3                  ; RET
 
 #:ascii_other
-	48C7C0 FFFFFFFF     ; LOADI32_RAX %-1
-	C3                  ; RETQ
+	6AFF                ; PUSH_-1
+	58                  ; POP_RAX         # rax = -1
+	C3                  ; RET
 
 #:Done
 	# program completed Successfully
-	BF 00000000         ; LOADI32_EDI %0  # All is well
-	B8 3C000000         ; LOADI32_RAX %60 # put the exit syscall number in rax
+	31FF                ; XOR_EDI_EDI     # All is well, rdi = 0
+	6A3C                ; PUSH_60         # sycall number for exit is 60
+	58                  ; POP_RAX         # put the exit syscall number in rax
 	0F05                ; SYSCALL         # Call it a good day
 
+# Writes byte stored in al
 #:write_byte
 	# Print our Hex
-	BA 01000000         ; LOADI32_EDX %1  # set the size of chars we want
-	BE 68016000         ; LOADI32_ESI %output # What we are writing
+	6A01                ; PUSH_1          # prepare to set rdx to 1
+	5A                  ; POP_RDX         # set the size of chars we want
+	50                  ; PUSH_RAX        # Move output to stack
+	4889E6              ; COPY_RSP_to_RSI # What we are writing
 	4C89D7              ; COPY_R10_to_RDI # Where are we writing to
-	B8 01000000         ; LOADI32_EAX %1  # the syscall number for write
+	6A01                ; PUSH_1          # prepare syscall number for write
+	58                  ; POP_RAX         # get the syscall number for write
 	0F05                ; SYSCALL         # call the Kernel
+	5B                  ; POP_RBX         # deallocate stack
 	C3                  ; RET
-
-# Where we are putting our output
-#:output
-	# Reserve 4bytes of Zeros
-	00000000            ; NULL
 
 #:read_byte
 	# Attempt to read 1 byte from STDIN
-	BA 01000000         ; LOADI32_EDX %1  # set the size of chars we want
-	BE 91016000         ; LOADI32_ESI &input # Where to put it
+	6A01                ; PUSH_1          # prepare to set rdx to 1
+	5A                  ; POP_RDX         # set the size of chars we want
+	53                  ; PUSH_RBX        # allocate stack
+	4889E6              ; COPY_RSP_to_RSI # Where to put it
 	4C89CF              ; COPY_R9_to_RDI  # Where are we reading from
-	B8 00000000         ; LOADI32_EAX %0  # the syscall number for read
+	31C0                ; XOR_EAX_EAX     # the syscall number for read
 	0F05                ; SYSCALL         # call the Kernel
 
 	4885C0              ; TEST_RAX_RAX    # check what we got
-	74 C2               ; JE8 !Done       # Got EOF call it done
+	74 D5               ; JE8 !Done       # Got EOF call it done
 
 	# load byte
-	8A0425 91016000     ; LOAD8_al_Absolute32 &input # load char
-	480FB6C0            ; MOVZBQ_RAX_AL   # We have to zero extend it to use it
+	58                  ; POP_RAX         # load char
 	C3                  ; RET
-
-# Where we get our input
-#:input
-	# Reserve 4bytes of Zeros
-	00000000            ; NULL
 
 #:ELF_end
