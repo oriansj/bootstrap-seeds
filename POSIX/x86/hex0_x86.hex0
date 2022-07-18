@@ -1,4 +1,5 @@
 ## Copyright (C) 2019 Jeremiah Orians
+## Copyright (C) 2022 Andrius Štikonas
 ## This file is part of stage0.
 ##
 ## stage0 is free software: you can redistribute it and/or modify
@@ -57,8 +58,8 @@
 00 80 04 08                     # ph_vaddr
 00 80 04 08                     # ph_physaddr
 
-27 01 00 00                     # ph_filesz
-27 01 00 00                     # ph_memsz
+00 01 00 00                     # ph_filesz
+00 01 00 00                     # ph_memsz
 
 07 00 00 00                     # ph_flags: PF-X|PF-W|PF-R = 7
 01 00 00 00                     # ph_align
@@ -73,33 +74,33 @@
 	5B                          # POP_EBX                     ; Get the program name
 	5B                          # POP_EBX                     ; Get the actual input name
 	31C9                        # XOR_ECX_ECX                 ; prepare read_only, ecx = 0
-	31D2                        # XOR_EDX_EDX %0              ; Extra sure, edx = 0
-	6A05                        # PUSH_5                      ; prepare to set eax to 5
+	31D2                        # XOR_EDX_EDX                 ; Extra sure, edx = 0
+	6A 05                       # PUSH !5                     ; prepare to set eax to 5
 	58                          # POP_EAX                     ; the syscall number for open()
 	CD80                        # INT_80                      ; Now open that damn file
-	A3 1F810408                 # STORE32_Absolute32_eax &fin ; Preserve the file pointer we were given
+	89C6                        # COPY_EAX_to_ESI             ; Preserve the file pointer we were given
 
 	5B                          # POP_EBX                     ; Get the actual output name
-	B9 41020000                 # LOADI32_ECX %577            ; Prepare file as O_WRONLY|O_CREAT|O_TRUNC
-	BA C0010000                 # LOADI32_EDX %448            ; Prepare file as RWX for owner only (700 in octal)
-	6A05                        # PUSH_5                      ; prepare to set eax to 5
+	66B9 4102                   # LOADI16_CX @577             ; Prepare file as O_WRONLY|O_CREAT|O_TRUNC
+	66BA C001                   # LOADI16_DX @448             ; Prepare file as RWX for owner only (700 in octal)
+	6A 05                       # PUSH !5                     ; prepare to set eax to 5
 	58                          # POP_EAX                     ; the syscall number for open()
 	CD80                        # INT_80                      ; Now open that damn file
-	A3 23810408                 # STORE32_Absolute32_eax &fout ; Preserve the file pointer we were given
+	89C2                        # COPY_EAX_to_EDX             ; Preserve the file pointer we were given
 
 	; Our flag for byte processing
-	6AFF                        # PUSH_-1
+	6A FF                       # PUSH !-1
 	5D                          # POP_EBP                     ; ebp = -1
 
 	; temp storage for the sum
 	31FF                        # XOR_EDI_EDI                 ; edi = 0
 
-#:loop ; (0x804807F)
+#:loop ; (0x8048077)
 	; Read a byte
-	E8 84000000                 # CALL %Read_byte
+	E8 68000000                 # CALL %Read_byte
 
 	; process byte
-	E8 1D000000                 # CALL %hex
+	E8 1B000000                 # CALL %hex
 
 	; Deal with -1 values
 	85C0                        # TEST
@@ -115,125 +116,121 @@
 	EB E8                       # JMP8 !loop
 
 ; process second byte of pair
-#:print ; (0x8048097)
+#:print ; (0x804808F)
 	; update the sum and store in output
 	C1E7 04                     # SHLI8_EDI !4
 	01F8                        # ADD_EDI_to_EAX
 
 	; flip the toggle
-	6AFF                        # PUSH_-1
-	5D                          # POP_EBP                     ; ebp = -1
-	E8 51000000                 # CALL %write_byte
+	4D                          # DEC_EBP                     ; ebp = -1
 
-	EB D9                       # JMP8 !loop
+	E8 39000000                 # CALL %write_byte
 
-#:hex ; (0x80480A6)
+	EB DB                       # JMP8 !loop
+
+#:hex ; (0x804809C)
 	; Purge Comment Lines (#)
-	83F8 23                     # CMPI8_EAX !35
-	74 25                       # JE8 !purge_comment
+	3C 23                       # CMPI8_AL !35
+	74 1E                       # JE8 !purge_comment
 
 	; Purge Comment Lines (;)
-	83F8 3B                     # CMPI8_EAX !59
-	74 20                       # JE8 !purge_comment
+	3C 3B                       # CMPI8_AL !59
+	74 1A                       # JE8 !purge_comment
 
 	; deal all ascii less than 0
-	83F8 30                     # CMPI8_EAX !48
-	7C 35                       # JL8 !ascii_other
+	3C 30                       # CMPI8_AL !48
+	7C 1F                       # JL8 !ascii_other
 
 	; deal with 0-9
-	83F8 3A                     # CMPI8_EAX !58
-	7C 24                       # JL8 !ascii_num
+	3C 3A                       # CMPI8_AL !58
+	7C 1F                       # JL8 !ascii_num
 
 	; deal with all ascii less than A
-	83F8 41                     # CMPI8_EAX !65
-	7C 2B                       # JL8 !ascii_other
+	3C 41                       # CMPI8_AL !65
+	7C 17                       # JL8 !ascii_other
 
 	; deal with A-F
-	83F8 47                     # CMPI8_EAX !71
-	7C 22                       # JL8 !ascii_high
+	3C 47                       # CMPI8_AL !71
+	7C 1C                       # JL8 !ascii_high
 
 	;deal with all ascii less than a
-	83F8 61                     # CMPI8_EAX !97
-	7C 21                       # JL8 !ascii_other
+	3C 61                       # CMPI8_AL !97
+	7C 0F                       # JL8 !ascii_other
 
 	;deal with a-f
-	83F8 67                     # CMPI8_EAX !103
-	7C 14                       # JL8 !ascii_low
+	3C 67                       # CMPI8_AL !103
+	7C 12                       # JL8 !ascii_low
 
 	; The rest that remains needs to be ignored
-	EB 1A                       # JMP8 !ascii_other
+	EB 09                       # JMP8 !ascii_other
 
-#:purge_comment ; (0x80480D0)
+#:purge_comment ; (0x80480BE)
 	; Read a byte
-	E8 33000000                 # CALL %Read_byte
+	E8 21000000                 # CALL %Read_byte
 
 	; Loop if not LF
-	83F8 0A                     # CMPI8_EAX !10
-	75 F6                       # JNE8 !purge_comment
+	3C 0A                       # CMPI8_AL !10
+	75 F7                       # JNE8 !purge_comment
 
 	; Otherwise return -1
-	6AFF                        # PUSH_-1
-	58                          # POP_EAX                     ; eax = -1
+
+#:ascii_other ; (0x80480C7)
+	6A FF                       # PUSH !-1
+	58                          # POP_EAX                     ; return -1
 	C3                          # RET
 
-#:ascii_num ; (0x80480DE)
-	83E8 30                     # SUBI8_EAX !48
+#:ascii_num ; (0x80480CB)
+	2C 30                       # SUBI8_AL !48
 	C3                          # RET
 
-#:ascii_low ; (0x80480E2)
-	83E8 57                     # SUBI8_EAX !87
-	C3                          # RET
+#:ascii_low ; (0x80480CE)
+	2C 20                       # SUBI8_AL !32
 
-#:ascii_high ; (0x80480E6)
-	83E8 37                     # SUBI8_EAX !55
+#:ascii_high ; (0x80480D0)
+	2C 37                       # SUBI8_AL !55
 	C3                          # RET
-
-#:ascii_other ; (0x80480EA)
-	6AFF                        # PUSH_-1
-	58                          # POP_EAX                     ; eax = -1
-	C3                          # RET
-
-#:Done ; (0x80480EE)
-	; program completed Successfully
-	31DB                        # XOR_EBX_EBX                 ; All is well, ebx = 0
-	6A01                        # PUSH_1
-	58                          # POP_EAX                     ; put the exit syscall number in eax
-	CD80                        # INT_80                      ; Call it a good day
 
 ; Writes byte stored in al
-#:write_byte ; (0x80480F5)
+#:write_byte ; (0x80480D3)
 	; Print our Hex
-	6A01                        # PUSH_1                      ; prepare to set edx to 1
+	89D3                        # COPY_EDX_to_EBX             ; Where are we writing to
+	52                          # PUSH_EDX                    ; protect fout
+	6A 01                       # PUSH !1                     ; prepare to set edx to 1
 	5A                          # POP_EDX                     ; set the size of chars we want
 	50                          # PUSH_EAX                    ; Move output to stack
 	89E1                        # COPY_ESP_to_ECX             ; What we are writing
-	8B1D 23810408               # LOAD32_Absolute32_ebx &fout ; Where are we writing to
-	6A04                        # PUSH_4                      ; prepare to set eax to 4
+	6A 04                       # PUSH !4                     ; prepare to set eax to 4
 	58                          # POP_EAX                     ; the syscall number for write
 	CD80                        # INT_80                      ; call the Kernel
 	5B                          # POP_EBX                     ; deallocate stack
+	5A                          # POP_EDX                     ; restore fout
 	C3                          # RET
 
-#:Read_byte ; (0x8048108)
+#:Read_byte ; (0x80480E4)
 	; Attempt to read 1 byte from Input file
-	6A01                        # PUSH_1                      ; prepare to set edx to 1
+	52                          # PUSH_EDX                    ; protect fout
+	6A 01                       # PUSH !1                     ; prepare to set edx to 1
 	5A                          # POP_EDX                     ; set the size of chars we want
 	53                          # PUSH_EBX                    ; allocate stack
 	89E1                        # COPY_ESP_to_ECX             ; Where to put it
-	8B1D 1F810408               # LOAD32_Absolute32_ebx &fin  ; Where are we reading from
-	6A03                        # PUSH_3                      ; prepare to set eax to 3
+	89F3                        # COPY_ESI_to_EBX             ; Where are we reading from
+	6A 03                       # PUSH !3                     ; prepare to set eax to 3
 	58                          # POP_EAX                     ; the syscall number for read
 	CD80                        # INT_80                      ; call the Kernel
 
 	85C0                        # TEST                        ; check what we got
-	74 D1                       # JE8 !Done                   ; Got EOF call it done
+	74 03                       # JE8 !Done                   ; Got EOF call it done
 
 	; load byte
 	58                          # POP_EAX                     ; load char
+	5A                          # POP_EDX                     ; restore fout
 	C3                          # RET
 
-#:fin ; (0x804811F)
-	00000000                    # NULL
-#:fout ; (0x8048123)
-	00000000                    # NULL
+#:Done ; (0x80480F9)
+	; program completed Successfully
+	31DB                        # XOR_EBX_EBX                 ; All is well, ebx = 0
+	6A 01                       # PUSH !1
+	58                          # POP_EAX                     ; put the exit syscall number in eax
+	CD80                        # INT_80                      ; Call it a good day
+
 #:ELF_end
