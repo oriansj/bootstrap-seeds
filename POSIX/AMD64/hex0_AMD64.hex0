@@ -60,8 +60,8 @@
 00 00 60 00 00 00 00 00 ## p_vaddr
 00 00 60 00 00 00 00 00 ## p_physaddr
 
-4E 01 00 00 00 00 00 00 ## p_filesz
-4E 01 00 00 00 00 00 00 ## p_memsz
+24 01 00 00 00 00 00 00 ## p_filesz
+24 01 00 00 00 00 00 00 ## p_memsz
 
 01 00 00 00 00 00 00 00 ## Required alignment
 
@@ -70,167 +70,162 @@
 # Where the ELF Header is going to hit
 # Simply jump to _start
 # Our main function
-#:_start
+#:_start (0x600078)
 	58                  ; POP_RAX         # Get the number of arguments
 	5F                  ; POP_RDI         # Get the program name
 	5F                  ; POP_RDI         # Get the actual input name
 	31F6                ; XOR_ESI_ESI     # prepare read_only, rsi = 0
-	6A02                ; PUSH_2          # prepare syscall number
+	6A02                ; PUSH !2         # prepare syscall number
 	58                  ; POP_RAX         # the syscall number for open()
 	0F05                ; SYSCALL         # Now open that damn file
 	4989C1              ; COPY_RAX_to_R9  # Preserve the file pointer we were given
 
 	5F                  ; POP_RDI         # Get the actual output name
-	BE 41020000         ; LOADI32_ESI %577 # Prepare file as O_WRONLY|O_CREAT|O_TRUNC
-	BA C0010000         ; LOADI32_EDX %448 # Prepare file as RWX for owner only (700 in octal)
-	6A02                ; PUSH_2          # prepare syscall number
+	66BE 4102           ; LOADI16_SI @577 # Prepare file as O_WRONLY|O_CREAT|O_TRUNC
+	66BA C001           ; LOADI16_DX @448 # Prepare file as RWX for owner only (700 in octal)
+	6A02                ; PUSH !2         # prepare syscall number
 	58                  ; POP_RAX         # the syscall number for open()
 	0F05                ; SYSCALL         # Now open that damn file
 	4989C2              ; COPY_RAX_to_R10 # Preserve the file pointer we were given
 
 	# Our flag for byte processing
-	6AFF                ; PUSH_-1
-	415F                ; POP_R15         # r15 = -1
+	6AFF                ; PUSH !-1
+	5B                  ; POP_RBX         # rbx = -1
 
 	# temp storage for the sum
-	4531F6              ; XOR_R14D_R14D   # r14 = 0
+	31ED                ; XOR_EBP_EBP     # rbp = 0
 
-#:loop
+#:loop (0x60009B)
 	# Read a byte
-	E8 95000000         ; CALLI32 %read_byte
+	E8 69000000         ; CALLI32 %read_byte
 
 	# process byte
-	E8 24000000         ; CALLI32 %hex
+	E8 1C000000         ; CALLI32 %hex
 
 	# deal with -1 values
-	4885C0              ; TEST_RAX_RAX
-	7C F1               ; JL8 !loop
+	85C0                ; TEST_EAX_EAX
+	7C F2               ; JL8 !loop
 
 	# deal with toggle
-	4D85FF              ; TEST_R15_R15    # jump if r15 >= 0
-	7D 08               ; JGE8 !print
+	85DB                ; TEST_EBX_EBX    # jump if rbx >= 0
+	7D 06               ; JGE8 !print
 
 	# process first byte of pair
-	4989C6              ; MOVE_R14_RAX
-	4531FF              ; XOR_R15D_R15D   # r15 = 0
-	EB E4               ; JMP8 !loop
+	89C5                ; COPY_EBP_EAX
+	31DB                ; XOR_EBX_EBX     # rbx = 0
+	EB E8               ; JMP8 !loop
 
 # process second byte of pair
-#:print
+#:print (0x6000B3)
 	# update the sum and store in output
-	49C1E6 04           ; SHL_R14_Immediate8 !4
-	4C01F0              ; ADD_RAX_R14
+	C1E5 04             ; SHL_EBP_Immediate8 !4
+	01E8                ; ADD_EAX_EBP
 
 	# flip the toggle
-	6AFF                ; PUSH_-1
-	415F                ; POP_R15         # r15 = -1
+	FFCB                ; DEC_EBX         # rbx = -1
 
-	E8 5D000000         ; CALLI32 %write_byte
+	E8 39000000         ; CALLI32 %write_byte
 
-	EB D2               ; JMP8 !loop
+	EB DA               ; JMP8 !loop
 
-#:hex
+#:hex (0x6000C1)
 	# Purge Comment Lines (#)
-	4883F8 23           ; CMP_RAX_Immediate8 !35
-	74 2C               ; JE8 !purge_comment
+	3C 23               ; CMPI8_AL !35
+	74 1E               ; JE8 !purge_comment
 
 	# Purge Comment Lines (;)
-	4883F8 3B           ; CMP_RAX_Immediate8 !59
-	74 26               ; JE8 !purge_comment
+	3C 3B               ; CMPI8_AL !59
+	74 1A               ; JE8 !purge_comment
 
 	# deal all ascii less than '0'
-	4883F8 30           ; CMP_RAX_Immediate8 !48
-	7C 3E               ; JL8 !ascii_other
+	3C 30               ; CMPI8_AL !48
+	7C 1F               ; JL8 !ascii_other
 
 	# deal with 0-9
-	4883F8 3A           ; CMP_RAX_Immediate8 !58
-	7C 29               ; JL8 !ascii_num
+	3C 3A               ; CMPI8_AL !58
+	7C 1F               ; JL8 !ascii_num
 
 	# deal with all ascii less than 'A'
-	4883F8 41           ; CMP_RAX_Immediate8 !65
-	7C 32               ; JL8 !ascii_other
+	3C 41               ; CMPI8_AL !65
+	7C 17               ; JL8 !ascii_other
 
 	# deal with 'A'-'F'
-	4883F8 47           ; CMP_RAX_Immediate8 !71
-	7C 27               ; JL8 !ascii_high
+	3C 47               ; CMPI8_AL !71
+	7C 1C               ; JL8 !ascii_high
 
 	# deal with all ascii less than 'a'
-	4883F8 61           ; CMP_RAX_Immediate8 !97
-	7C 26               ; JL8 !ascii_other
+	3C 61               ; CMPI8_AL !97
+	7C 0F               ; JL8 !ascii_other
 
 	#deal with 'a'-'f'
-	4883F8 67           ; CMP_RAX_Immediate8 !103
-	7C 16               ; JL8 !ascii_low
+	3C 67               ; CMPI8_AL !103
+	7C 12               ; JL8 !ascii_low
 
 	# The rest that remains needs to be ignored
-	EB 1E               ; JMP8 !ascii_other
+	EB 09               ; JMP8 !ascii_other
 
-#:purge_comment
+#:purge_comment (0x6000E3)
 	# Read a byte
-	E8 35000000         ; CALLI32 %read_byte
+	E8 21000000         ; CALLI32 %read_byte
 
 	# Loop if not LF
-	4883F8 0A           ; CMP_RAX_Immediate8 !10
-	75 F5               ; JNE8 !purge_comment
+	3C 0A               ; CMPI8_AL !10
+	75 F7               ; JNE8 !purge_comment
 
 	# Otherwise return -1
+
+#:ascii_other (0x6000EC)
 	6AFF                ; PUSH_-1
-	58                  ; POP_RAX         # rax = -1
+	58                  ; POP_RAX         # return = -1
 	C3                  ; RET
 
-#:ascii_num
-	4883E8 30           ; SUB_RAX_Immediate8 !48
+#:ascii_num (0x6000F0)
+	2C 30               ; SUBI8_AL !48
 	C3                  ; RET
 
-#:ascii_low
-	4883E8 57           ; SUB_RAX_Immediate8 !87
-	C3                  ; RET
+#:ascii_low (0x6000F3)
+	2C 20               ; SUBI8_AL !32
 
-#:ascii_high
-	4883E8 37           ; SUB_RAX_Immediate8 !55
+#:ascii_high (0x6000F5)
+	2C 37               ; SUBI8_AL !55
 	C3                  ; RET
-
-#:ascii_other
-	6AFF                ; PUSH_-1
-	58                  ; POP_RAX         # rax = -1
-	C3                  ; RET
-
-#:Done
-	# program completed Successfully
-	31FF                ; XOR_EDI_EDI     # All is well, rdi = 0
-	6A3C                ; PUSH_60         # sycall number for exit is 60
-	58                  ; POP_RAX         # put the exit syscall number in rax
-	0F05                ; SYSCALL         # Call it a good day
 
 # Writes byte stored in al
-#:write_byte
+#:write_byte (0x6000F8)
 	# Print our Hex
-	6A01                ; PUSH_1          # prepare to set rdx to 1
+	6A01                ; PUSH !1         # prepare to set rdx to 1
 	5A                  ; POP_RDX         # set the size of chars we want
 	50                  ; PUSH_RAX        # Move output to stack
 	4889E6              ; COPY_RSP_to_RSI # What we are writing
 	4C89D7              ; COPY_R10_to_RDI # Where are we writing to
-	6A01                ; PUSH_1          # prepare syscall number for write
+	6A01                ; PUSH !1         # prepare syscall number for write
 	58                  ; POP_RAX         # get the syscall number for write
 	0F05                ; SYSCALL         # call the Kernel
-	5B                  ; POP_RBX         # deallocate stack
+	5F                  ; POP_RDI         # deallocate stack
 	C3                  ; RET
 
-#:read_byte
+#:read_byte (0x600109)
 	# Attempt to read 1 byte from STDIN
-	6A01                ; PUSH_1          # prepare to set rdx to 1
+	6A01                ; PUSH !1         # prepare to set rdx to 1
 	5A                  ; POP_RDX         # set the size of chars we want
-	53                  ; PUSH_RBX        # allocate stack
+	57                  ; PUSH_RDI        # allocate stack
 	4889E6              ; COPY_RSP_to_RSI # Where to put it
 	4C89CF              ; COPY_R9_to_RDI  # Where are we reading from
 	31C0                ; XOR_EAX_EAX     # the syscall number for read
 	0F05                ; SYSCALL         # call the Kernel
 
-	4885C0              ; TEST_RAX_RAX    # check what we got
-	74 D5               ; JE8 !Done       # Got EOF call it done
+	85C0                ; TEST_EAX_EAX    # check what we got
+	74 02               ; JE8 !Done       # Got EOF call it done
 
 	# load byte
 	58                  ; POP_RAX         # load char
 	C3                  ; RET
+
+#:Done (0x60011D)
+	# program completed Successfully
+	31FF                ; XOR_EDI_EDI     # All is well, rdi = 0
+	6A3C                ; PUSH !60        # sycall number for exit is 60
+	58                  ; POP_RAX         # put the exit syscall number in rax
+	0F05                ; SYSCALL         # Call it a good day
 
 #:ELF_end
