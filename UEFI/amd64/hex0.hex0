@@ -41,7 +41,7 @@
 00 00 00 00 00 00 00 00 00 00
 40 00 00 00                     # Starting address of the PE header
 
-# [0x80]
+# [0x40]
 # PE header
 50 45 00 00                     # Signature "PE"
 64 86                           # Machine
@@ -52,7 +52,7 @@
 F0 00                           # SizeOfOptionalHeader
 22 20                           # 'Characteristics'
 
-# [0x98]
+# [0x58]
 # COFF header bits
 0B 02                           # Magic PE32+ (64 bit)
 00 00                           # Linker version
