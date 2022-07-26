@@ -74,7 +74,7 @@ F3 00              ## e_machine Indicating RISC-V
     63 16 06 00     # RS1_A2 @_start_out BNEZ           ; Use input file if specified
                     # +12B
 
-    # Else use kaem.run
+    # Else use kaem.riscv32
     17 06 00 00     # RD_A2 ~default_file AUIPC         ; load address of default_file
     13 06 86 2E     # RD_A2 RS1_A2 !default_file ADDI   ; into register a2
                     # +744B

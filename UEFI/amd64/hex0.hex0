@@ -21,10 +21,10 @@
 
 # DOS MZ header
 4D 5A                           # Signature
-78 00                           # Number of bytes in the last page.
-01 00                           # Number of whole/partial pages
+00 00                           # Number of bytes in the last page.
+00 00                           # Number of whole/partial pages
 00 00                           # Number of entries in the relocation table.
-04 00                           # Header size
+00 00                           # Header size
 00 00                           # Minimum allocation
 00 00                           # Maximum allocation
 00 00                           # Relocatable segment address for SS
@@ -32,7 +32,7 @@
 00 00                           # Checksum (I don't think is looked at)
 00 00                           # Initial value for IP (Seems ignored)
 00 00                           # Relocatable segment address for CS (Seems ignored)
-40 00                           # The (absolute) offset to the relocation table.
+00 00                           # The (absolute) offset to the relocation table.
 00 00                           # Value used for overlay management. If zero, this is the main executable
 00 00 00 00 00 00 00 00         # Reserved in PE
 00 00                           # OEM identifier
@@ -50,13 +50,13 @@
 00 00 00 00                     # PointerToSymbolTable
 00 00 00 00                     # number of symbols
 F0 00                           # SizeOfOptionalHeader
-22 20                           # 'Characteristics'
+00 00                           # 'Characteristics'
 
 # [0x58]
 # COFF header bits
 0B 02                           # Magic PE32+ (64 bit)
 00 00                           # Linker version
-A3 01 00 00                     # size of code
+00 00 00 00                     # size of code
 00 00 00 00                     # sizeOfInitializedData
 00 00 00 00                     # SizeOfUninitializedData
 00 10 00 00                     # AddressOfEntryPoint
@@ -64,20 +64,20 @@ A3 01 00 00                     # size of code
 00 00 00 80 01 00 00 00         # ImageBase
 01 00 00 00                     # SectionAlignment
 01 00 00 00                     # FileAlignment
-06 00 00 00                     # OperatingSystemVersion
+00 00 00 00                     # OperatingSystemVersion
 00 00 00 00                     # ImageVersion
-06 00 00 00                     # SubsystemVersion
+00 00 00 00                     # SubsystemVersion
 00 00 00 00                     # Win32VersionValue
 00 20 00 00                     # SizeOfImage
 70 01 00 00                     # SizeOfHeaders
 00 00 00 00                     # CheckSum (isn't used at all)
 0A 00                           # Subsystem
-60 01                           # DllCharacteristics
-00 00 10 00                     # SizeOfStackReserve
+00 00                           # DllCharacteristics
+00 00 00 00                     # SizeOfStackReserve
 00 00 00 00                     # SizeOfStackCommit
-00 10 00 00                     # SizeOfHeapReserve
+00 00 00 00                     # SizeOfHeapReserve
 00 00 00 00                     # SizeOfHeapCommit
-00 00 10 00                     # LoaderFlags
+00 00 00 00                     # LoaderFlags
 00 00 00 00                     # NumberOfRvaAndSizes
 
 # [0xB8]
@@ -135,7 +135,7 @@ A3 01 00 00                     # size of code
 
 # [0x148]
 # Start of section headers
-2E 74 65 78 74 00 00 00                 ; Name: ".text"
+00 00 00 00 00 00 00 00                 ; Name of the section (empty) but could set to ".text"
 A3 01 00 00                             ; VirtualSize
 00 10 00 00                             ; VirtualAddress
 A3 01 00 00                             ; SizeOfRawData
@@ -144,7 +144,7 @@ A3 01 00 00                             ; SizeOfRawData
 00 00 00 00                             ; PointerToLinenumbers
 00 00                                   ; NumberOfRelocations
 00 00                                   ; NumberOfLinenumbers
-20 00 00 60                             ; 'Characteristics'
+00 00 00 00                             ; 'Characteristics'
 
 # [0x170]
 # Our actual program

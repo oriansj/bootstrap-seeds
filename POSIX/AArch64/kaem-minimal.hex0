@@ -70,7 +70,7 @@ C2 05 00 00 00 00 00 00             # ph_memsz
     40000054                    ; SKIP_INST_EQ                # Have real input
     050000 14                   ; ^~_start_out FBRANCH
     e2630091                    ; ADD_X2_SP_24                # Nope, envp is here!
-    41000018                    ; LOAD_W1_AHEAD               # Use "kaem.run"
+    41000018                    ; LOAD_W1_AHEAD               # Use "kaem.aarch64"
     02000014                    ; SKIP_32_DATA
     90056000                    ; &default_file
 

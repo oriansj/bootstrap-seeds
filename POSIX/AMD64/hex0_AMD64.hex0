@@ -75,7 +75,7 @@
 	5F                  ; POP_RDI         # Get the program name
 	5F                  ; POP_RDI         # Get the actual input name
 	31F6                ; XOR_ESI_ESI     # prepare read_only, rsi = 0
-	6A02                ; PUSH !2         # prepare syscall number
+	6A 02               ; PUSH !2         # prepare syscall number
 	58                  ; POP_RAX         # the syscall number for open()
 	0F05                ; SYSCALL         # Now open that damn file
 	4989C1              ; COPY_RAX_to_R9  # Preserve the file pointer we were given
@@ -83,13 +83,13 @@
 	5F                  ; POP_RDI         # Get the actual output name
 	66BE 4102           ; LOADI16_SI @577 # Prepare file as O_WRONLY|O_CREAT|O_TRUNC
 	66BA C001           ; LOADI16_DX @448 # Prepare file as RWX for owner only (700 in octal)
-	6A02                ; PUSH !2         # prepare syscall number
+	6A 02               ; PUSH !2         # prepare syscall number
 	58                  ; POP_RAX         # the syscall number for open()
 	0F05                ; SYSCALL         # Now open that damn file
 	4989C2              ; COPY_RAX_to_R10 # Preserve the file pointer we were given
 
 	# Our flag for byte processing
-	6AFF                ; PUSH !-1
+	6A FF               ; PUSH !-1
 	5B                  ; POP_RBX         # rbx = -1
 
 	# temp storage for the sum
@@ -175,7 +175,7 @@
 	# Otherwise return -1
 
 #:ascii_other (0x6000EC)
-	6AFF                ; PUSH_-1
+	6A FF               ; PUSH !-1
 	58                  ; POP_RAX         # return = -1
 	C3                  ; RET
 
@@ -184,7 +184,7 @@
 	C3                  ; RET
 
 #:ascii_low (0x6000F3)
-	2C 20               ; SUBI8_AL !32
+	2C 20               ; SUBI8_AL !32    # convert to uppercase
 
 #:ascii_high (0x6000F5)
 	2C 37               ; SUBI8_AL !55
@@ -193,12 +193,12 @@
 # Writes byte stored in al
 #:write_byte (0x6000F8)
 	# Print our Hex
-	6A01                ; PUSH !1         # prepare to set rdx to 1
+	6A 01               ; PUSH !1         # prepare to set rdx to 1
 	5A                  ; POP_RDX         # set the size of chars we want
 	50                  ; PUSH_RAX        # Move output to stack
 	4889E6              ; COPY_RSP_to_RSI # What we are writing
 	4C89D7              ; COPY_R10_to_RDI # Where are we writing to
-	6A01                ; PUSH !1         # prepare syscall number for write
+	6A 01               ; PUSH !1         # prepare syscall number for write
 	58                  ; POP_RAX         # get the syscall number for write
 	0F05                ; SYSCALL         # call the Kernel
 	5F                  ; POP_RDI         # deallocate stack
@@ -206,7 +206,7 @@
 
 #:read_byte (0x600109)
 	# Attempt to read 1 byte from STDIN
-	6A01                ; PUSH !1         # prepare to set rdx to 1
+	6A 01               ; PUSH !1         # prepare to set rdx to 1
 	5A                  ; POP_RDX         # set the size of chars we want
 	57                  ; PUSH_RDI        # allocate stack
 	4889E6              ; COPY_RSP_to_RSI # Where to put it
@@ -224,7 +224,7 @@
 #:Done (0x60011D)
 	# program completed Successfully
 	31FF                ; XOR_EDI_EDI     # All is well, rdi = 0
-	6A3C                ; PUSH !60        # sycall number for exit is 60
+	6A 3C               ; PUSH !60        # sycall number for exit is 60
 	58                  ; POP_RAX         # put the exit syscall number in rax
 	0F05                ; SYSCALL         # Call it a good day
 

@@ -184,7 +184,7 @@
 	C3                          # RET
 
 #:ascii_low ; (0x80480CE)
-	2C 20                       # SUBI8_AL !32
+	2C 20                       # SUBI8_AL !32                ; convert to uppercase
 
 #:ascii_high ; (0x80480D0)
 	2C 37                       # SUBI8_AL !55

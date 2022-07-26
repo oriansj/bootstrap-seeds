@@ -73,7 +73,7 @@ B2 03 00 00 00 00 00 00 ## p_memsz
     63 16 06 00     # RS1_A2 @_start_out BNEZ           ; Use input file if specified
                     # +12B
 
-    # Else use kaem.run
+    # Else use kaem.riscv64
     17 06 00 00     # RD_A2 ~default_file AUIPC         ; load address of default_file
     13 06 06 30     # RD_A2 RS1_A2 !default_file ADDI   ; into register a2
                     # +768B
