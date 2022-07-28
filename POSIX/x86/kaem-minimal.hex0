@@ -72,7 +72,7 @@
 	85DB                            # TEST_EBX_EBX                      ; Check for missing output
 	75 06                           # JNE8 !_start_out                  ; Have real input
 	50                              # PUSH_EAX                          ; Need to adjust stack
-	BB 38820408                     # LOADI32_EBX &default_file         ; Use "kaem.run"
+	BB 38820408                     # LOADI32_EBX &default_file         ; Use "kaem.x86"
 
 # :_start_out ; (0x8048061)
 	31C9                            # XOR_ECX_ECX                       ; prepare read_only
@@ -181,7 +181,7 @@
 	CD80                            # INT_80                            ; Call it a good day
 
 ;; print_command function
-;; Recieves tokens[j] in EBX and tokens[i] in ECX
+;; Receives tokens[j] in EBX and tokens[i] in ECX
 ;; Modifies EAX
 # :print_command ; (0x8048107)
 	53                              # PUSH_EBX                          ; Protect EBX
@@ -205,7 +205,7 @@
 
 
 ;; collect_token function
-;; Recieves nothing
+;; Receives nothing
 ;; Overwrites EAX
 ;; Uses EAX as C, EBX as token and ECX as token[i]
 # :collect_token ; (0x8048132)
@@ -281,7 +281,7 @@
 
 
 ;; collect_string function
-;; Recieves target[index] in ECX
+;; Receives target[index] in ECX
 ;; Modifies EAX
 ;; Uses EAX as C
 # :collect_string ; (0x804819C)
@@ -302,7 +302,7 @@
 
 
 ;; collect_comment function
-;; Recieves nothing
+;; Receives nothing
 ;; Modifies EAX
 ;; uses EAX as Int C
 ;; Just throws away everything it reads

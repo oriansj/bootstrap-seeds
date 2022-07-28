@@ -343,7 +343,7 @@ C2 05 00 00 00 00 00 00             # ph_memsz
 #:collect_string_loop
     230000 94                   ; ^~fgetc FCALL               # C = fgetc(input)
     1f1000b1                    ; CMP_X0_TO_MINUS_4           # if C == EOF
-    41000054                    ; SKIP_INST_NE                # Something went horriably wrong
+    41000054                    ; SKIP_INST_NE                # Something went horribly wrong
     a9ffff 17                   ; ^~Exit_Failure RBRANCH
 
     1f8800f1                    ; CMP_X0_TO_34                # IF C == '\"'
