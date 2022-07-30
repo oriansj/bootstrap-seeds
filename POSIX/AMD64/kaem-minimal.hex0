@@ -15,6 +15,7 @@
 ### along with stage0.  If not, see <http://www.gnu.org/licenses/>.
 
 # Register usage
+# * R12 status
 # * R13 script
 # * R14 MALLOC
 # * R15 command_done
@@ -64,8 +65,8 @@
 	00006000 00000000       ## p_vaddr
 	00006000 00000000       ## p_physaddr
 
-	B3020000 00000000       ## p_filesz
-	B3020000 00000000       ## p_memsz
+	6A020000 00000000       ## p_filesz
+	6A020000 00000000       ## p_memsz
 
 	01 00 00 00 00 00 00 00 ## Required alignment
 
@@ -77,7 +78,7 @@
 	85FF                            # TEST_EDI_EDI                        ; Check for missing output
 	75 06                           # JNE8 !_start_out                    ; Have real input
 	50                              # PUSH_RAX                            ; Need to adjust stack
-	BF 6B026000                     # LOADI32_EDI &default_file           ; Use "kaem.amd64"
+	BF 48026000                     # LOADI32_EDI &default_file           ; Use "kaem.amd64"
 
 # :_start_out ; (0x600085)
 	31F6                            # XOR_ESI_ESI                         ; prepare read_only
@@ -86,7 +87,7 @@
 	0F05                            # SYSCALL                             ; Now open that damn file
 
 	85C0                            # TEST_EAX_EAX                        ; IF NULL We couldn't open the file
-	0F8E 9D000000                   # JLE32 %Exit_Failure                 ; Abort hard
+	7E 66                           # JLE8 %Exit_Failure                  ; Abort hard
 	4989C5                          # COPY_RAX_to_R13                     ; Set input pointer
 
 	58                              # POP_RAX                             ; Get start of envp
@@ -100,37 +101,37 @@
 
 	;; Where the main work gets done
 	;; Using RDI for tokens and RSI for tokens[i]
-# :main_loop ; (0x6000A5)
-	488B0425 9B026000               # LOAD64_RAX_from_ABS32 &max_args     ; Using 256 char* of space
-	E8 4E010000                     # CALLI32 %malloc                     ; get it
+# :main_loop ; (0x6000A1)
+	31C0                            # XOR_EAX_EAX                         ; Zero RAX
+	B4 08                           # LOADI8_AH !0x8                      ; Using 256 char* of space (0x800)
+	E8 33010000                     # CALLI32 %malloc                     ; get it
 	4889C7                          # COPY_RAX_to_RDI                     ; set tokens
 
 	4889FE                          # COPY_RDI_to_RSI                     ; I = 0
 	31C0                            # XOR_EAX_EAX                         ; Using 0
-	48890425 AB026000               # STORE64_from_RAX_into_ABS32 &status ; status = 0
 	4D31FF                          # XOR_R15_R15                         ; command_done = 0
 
 	;; Using RAX for result and RDI for tokens[i]
-# :collect_command ; (0x6000C5)
-	E8 A4000000                     # CALLI32 %collect_token              ; Get another token
+# :collect_command ; (0x6000B5)
+	E8 95000000                     # CALLI32 %collect_token              ; Get another token
 	85C0                            # TEST_EAX_EAX                        ; if NULL == result
 	74 07                           # JE8 !collect_command_comment        ; It is a comment, don't store
 
 	488906                          # STORE64_RAX_into_Address_RSI        ; tokens[i] = result
 	4883C6 08                       # ADDI8_RSI !8                        ; i = i + 1 (adjusted for char* size)
 
-# :collect_command_comment ; (0x6000D5)
+# :collect_command_comment ; (0x6000C5)
 	4D85FF                          # TEST_R15_R15                        ; IF 0 == command_done
 	74 EB                           # JE8 !collect_command                ; keep looping
 
 	;; Deal with line comments
 	4839FE                          # CMP_RDI_to_RSI                      ; if 0 < i
-	74 C6                           # JE8 !main_loop                      ; It was a comment
+	74 D2                           # JE8 !main_loop                      ; It was a comment
 
-	E8 5C000000                     # CALLI32 %print_command              ; print the command
+	E8 4D000000                     # CALLI32 %print_command              ; print the command
 	488B07                          # LOAD64_into_RAX_from_Address_RDI    ; program = tokens[0]
 	85C0                            # TEST_EAX_EAX                        ; IF NULL == program
-	74 46                           # JE8 !Exit_Failure                   ; Some shit went down, abort
+	74 1B                           # JE8 !Exit_Failure                   ; Some shit went down, abort
 
 	57                              # PUSH_RDI                            ; Protect Tokens
 	6A 39                           # PUSH !57
@@ -139,8 +140,8 @@
 	5F                              # POP_RDI                             ; Restore Tokens
 
 	85C0                            # TEST_EAX_EAX                        ; Check fork
-	7C 3B                           # JL8 !Exit_Failure                   ; IF f == -1 abort hard
-	75 10                           # JNE8 !collect_command_parent        ; IF f == 0 it is child
+	7C 10                           # JL8 !Exit_Failure                   ; IF f == -1 abort hard
+	75 13                           # JNE8 !collect_command_parent        ; IF f == 0 it is child
 
 	;; Deal with child case
 	6A 3B                           # PUSH !59
@@ -149,38 +150,39 @@
 	4889FE                          # COPY_RDI_to_RSI                     ; second arg = tokens
 	488B3F                          # LOAD64_into_RDI_from_Address_RDI    ; program = tokens[0]
 	0F05                            # SYSCALL                             ; execve(program, tokens, envp);
-	EB 29                           # JMP8 !Exit_Failure                  ; return error
-
-# :collect_command_parent ; (0x600108)
-	4889C7                          # COPY_RAX_to_RDI                     ; first arg = f
-	BE AB026000                     # LOADI32_ESI &status                 ; second arg = &status
-	31D2                            # XOR_EDX_EDX                         ; third arg = NULL
-	6A 3D                           # PUSH !61
-	58                              # POP_RAX                             ; WAITPID
-	0F05                            # SYSCALL                             ; wait4pid(f, &status, 0, 0); [r10 = 0]
-
-	488B0425 AB026000               # LOAD64_RAX_from_ABS32 &status       ; Using status
-	85C0                            # TEST_EAX_EAX                        ; IF 0 == status
-	0F84 7EFFFFFF                   # JE32 %main_loop                     ; Loop forever
-
-	;; Deal with very unhappy case
-	B8 7B026000                     # LOADI32_EAX &hard                   ; Using "Subprocess error\nABORTING HARD\n"
-	E8 03010000                     # CALLI32 %File_Print                 ; Print it
 
 ;; Exit_Failure function
 ;; Receives nothing
 ;; And aborts hard
 ;; DOES NOT RETURN
-# :Exit_Failure ; (0x600131)
+# :Exit_Failure ; (0x6000F6)
 	6A 01                           # PUSH !1
 	5F                              # POP_RDI                             ; All is wrong
-	6A 3C                           # PUSH !60
-	58                              # POP_RAX                             ; put the exit syscall number in rax
-	0F05                            # SYSCALL                             ; Call it a bad day
+	EB 21                           # JMP8 !Exit                          ; Exit
 
-# :Done ; (0x600139)
+# :collect_command_parent ; (0x6000FB)
+	4889C7                          # COPY_RAX_to_RDI                     ; first arg = f
+	50                              # PUSH_RAX                            ; allocate stack for status
+	4889E6                          # COPY_RSP_to_RSI                     ; second arg = &status
+	31D2                            # XOR_EDX_EDX                         ; third arg = NULL
+	6A 3D                           # PUSH !61
+	58                              # POP_RAX                             ; WAITPID
+	0F05                            # SYSCALL                             ; wait4pid(f, &status, 0, 0); [r10 = 0]
+
+	58                              # POP_RAX                             ; Using status
+	85C0                            # TEST_EAX_EAX                        ; IF 0 == status
+	74 93                           # JE8 !main_loop                      ; Loop forever
+
+	;; Deal with very unhappy case
+	B8 58026000                     # LOADI32_EAX &hard                   ; Using "Subprocess error\n"
+	E8 F9000000                     # CALLI32 %File_Print                 ; Print it
+	EB DC                           # JMP8 !Exit_Failure                  ; return error
+
+
+# :Done ; (0x60011A)
 	; program completed Successfully
 	31FF                            # XOR_EDI_EDI                         ; All is well
+# :Exit ; (0x60011C)
 	6A 3C                           # PUSH !60
 	58                              # POP_RAX                             ; put the exit syscall number in rax
 	0F05                            # SYSCALL                             ; Call it a good day
@@ -188,23 +190,23 @@
 ;; print_command function
 ;; Receives tokens[j] in RDI and tokens[i] in RSI
 ;; Modifies RAX
-# :print_command ; (0x600140)
+# :print_command ; (0x600121)
 	57                              # PUSH_RDI                            ; Protect RDI
-	B8 76026000                     # LOADI32_EAX &prefix                 ; using " +> "
-	E8 E9000000                     # CALLI32 %File_Print                 ; print it
-# :print_command_loop ; (0x60014B)
+	B8 53026000                     # LOADI32_EAX &prefix                 ; using " +> "
+	E8 E5000000                     # CALLI32 %File_Print                 ; print it
+# :print_command_loop ; (0x60012C)
 	488B07                          # LOAD64_into_RAX_from_Address_RDI    ; using tokens[j]
-	E8 E1000000                     # CALLI32 %File_Print                 ; print it
+	E8 DD000000                     # CALLI32 %File_Print                 ; print it
 	4883C7 08                       # ADDI8_to_RDI !8                     ; j = j + 1
 	6A 20                           # PUSH !32
 	58                              # POP_RAX                             ; using ' '
-	E8 F4000000                     # CALLI32 %fputc                      ; print it
+	E8 F0000000                     # CALLI32 %fputc                      ; print it
 	4839FE                          # CMP_RDI_to_RSI                      ; IF j < i
 	75 E7                           # JNE8 !print_command_loop            ; otherwise keep looping
 
 	6A 0A                           # PUSH !10
 	58                              # POP_RAX                             ; using '\n'
-	E8 E7000000                     # CALLI32 %fputc                      ; print it
+	E8 E3000000                     # CALLI32 %fputc                      ; print it
 	5F                              # POP_RDI                             ; Restore RDI
 	C3                              # RETURN
 
@@ -213,18 +215,19 @@
 ;; Receives nothing
 ;; Overwrites RAX
 ;; Uses RAX as C, RDI as token and RSI as token[i]
-# :collect_token ; (0x60016E)
+# :collect_token ; (0x60014F)
 	57                              # PUSH_RDI                            ; Protect RDI
 	56                              # PUSH_RSI                            ; Protect RSI
-	488B0425 A3026000               # LOAD64_RAX_from_ABS32 &max_string   ; Using max_string
+	31C0                            # XOR_EAX_EAX                         ; Zero RAX
+	B4 10                           # LOADI8_AH !0x10                     ; max_string = 4096 * sizeof(char)
 	E8 83000000                     # CALLI32 %malloc                     ; allocate space
 	4889C7                          # COPY_RAX_to_RDI                     ; token = malloc(max_string);
 	4889C6                          # COPY_RAX_to_RSI                     ; i = 0; set token[i]
 
-# :collect_token_loop ; (0x600183)
+# :collect_token_loop ; (0x600160)
 	E8 90000000                     # CALLI32 %fgetc                      ; c = fgetc(input);
 	3C FC                           # CMPI8_AL !-4                        ; if C == EOF
-	74 AD                           # JE8 !Done                           ; We are done
+	74 B1                           # JE8 !Done                           ; We are done
 
 	3C 20                           # CMPI8_AL !32                        ; IF C == ' '
 	74 37                           # JE8 !collect_token_done             ; Space terminates token
@@ -238,7 +241,7 @@
 	;; It is a newline
 	EB 14                           # JMP8 !collect_token_set_command_done ; Set command_done = TRUE
 
-# :collect_token_string ; (0x60019A)
+# :collect_token_string ; (0x600177)
 	3C 22                           # CMPI8_AL !34                        ; IF C == '\"'
 	75 07                           # JNE8 !collect_token_comment         ; otherwise check next
 
@@ -246,18 +249,18 @@
 	E8 31000000                     # CALLI32 %collect_string             ; Get the rest of the string
 	EB 22                           # JMP8 !collect_token_done            ; Be done
 
-# :collect_token_comment ; (0x6001A5)
+# :collect_token_comment ; (0x600182)
 	3C 23                           # CMPI8_AL !35                        ; IF C == '#'
 	75 0B                           # JNE8 !collect_token_escape          ; otherwise check next
 
 	;; It is a line comment
 	E8 40000000                     # CALLI32 %collect_comment            ; Read it all
-# : collect_token_set_command_done ; (0x6001AE)
+# : collect_token_set_command_done ; (0x60018B)
 	6A 01                           # PUSH !1
 	415F                            # POP_R15                             ; Set command_done = TRUE
 	EB 13                           # JMP8 !collect_token_done            ; Be done
 
-# :collect_token_escape ; (0x6001B4)
+# :collect_token_escape ; (0x600191)
 	3C 5C                           # CMPI8_AL !92                        ; IF C == '\\'
 	75 07                           # JNE8 !collect_token_other           ; otherwise just store it
 
@@ -265,17 +268,17 @@
 	E8 5B000000                     # CALLI32 %fgetc                      ; Read the char to drop
 	EB 08                           # JMP8 !collect_token_done            ; Be done
 
-# :collect_token_other ; (0x6001BF)
+# :collect_token_other ; (0x60019C)
 	8806                            # STORE8_AL_into_Address_RSI          ; token[i] = C
 	4883C6 01                       # ADDI8_RSI !1                        ; i = i + 1
 	EB BC                           # JMP8 !collect_token_loop            ; Keep going
 
-# :collect_token_done ; (0x6001C7)
+# :collect_token_done ; (0x6001A4)
 	4839FE                          # CMP_RDI_to_RSI                      ; IF i == 0
 	75 02                           # JNE8 !collect_token_good            ; otherwise return the token
 	31FF                            # XOR_EDI_EDI                         ; token = NULL
 
-# :collect_token_good ; (0x6001CE)
+# :collect_token_good ; (0x6001AB)
 	4889F8                          # COPY_RDI_to_RAX                     ; Return token
 	5E                              # POP_RSI                             ; Restore RSI
 	5F                              # POP_RDI                             ; Restore RDI
@@ -286,12 +289,12 @@
 ;; Receives target[index] in RSI
 ;; Modifies RAX
 ;; Uses RAX as C
-# :collect_string ; (0x6001D4)
+# :collect_string ; (0x6001B1)
 	E8 3F000000                     # CALLI32 %fgetc                      ; C = fgetc(input)
 	3C FC                           # CMPI8_AL !-4                        ; if C == EOF
-	0F84 50FFFFFF                   # JE32 %Exit_Failure                  ; Something went horribly wrong
+	0F84 38FFFFFF                   # JE32 %Exit_Failure                  ; Something went horribly wrong
 
-	3C 22                           # CMPI8_AL !34                       ; IF C == '\"'
+	3C 22                           # CMPI8_AL !34                        ; IF C == '\"'
 	74 08                           # JE8 !collect_string_done            ; be done
 
 	;; deal with inside of string
@@ -299,7 +302,7 @@
 	4883C6 01                       # ADDI8_RSI !1                        ; index = index + 1
 	EB E7                           # JMP8 !collect_string                ; Keep going
 
-# :collect_string_done ; (0x6001ED)
+# :collect_string_done ; (0x6001CA)
 	C3                              # RETURN
 
 
@@ -308,10 +311,10 @@
 ;; Modifies RAX
 ;; uses RAX as Int C
 ;; Just throws away everything it reads
-# :collect_comment ; (0x6001EE)
+# :collect_comment ; (0x6001CB)
 	E8 25000000                     # CALLI32 %fgetc                      ; C = fgetc(input)
 	3C FC                           # CMPI8_AL !-4                        ; IF C == EOF
-	0F84 36FFFFFF                   # JE32 %Exit_Failure                  ; abort hard
+	0F84 1EFFFFFF                   # JE32 %Exit_Failure                  ; abort hard
 
 	3C 0A                           # CMPI8_AL !10                        ; IF C == '\n'
 	75 EF                           # JNE8 !collect_comment               ; otherwise keep looping
@@ -321,7 +324,7 @@
 ;; Malloc isn't actually required if the program being built fits in the initial memory
 ;; However, it doesn't take much to add it.
 ;; Requires [MALLOC] to be initialized and RAX to have the number of desired bytes
-# :malloc ; (0x600200)
+# :malloc ; (0x6001DD)
 	57                              # PUSH_RDI                            ; Protect RDI
 	56                              # PUSH_RSI                            ; Protect RSI
 	52                              # PUSH_RDX                            ; Protect RDX
@@ -341,7 +344,7 @@
 ;; fgetc function
 ;; Loads FILE* from [script]
 ;; Returns -4 (EOF) or char in RAX
-# :fgetc ; (0x600218)
+# :fgetc ; (0x6001F5)
 	57                              # PUSH_RDI                            ; Protect RDI
 	56                              # PUSH_RSI                            ; Protect RSI
 	52                              # PUSH_RDX                            ; Protect RDX
@@ -356,7 +359,7 @@
 	0F05                            # SYSCALL                             ; call the Kernel
 	58                              # POP_RAX                             ; Get either char or EOF
 	3C FC                           # CMPI8_AL !-4                        ; Check for EOF
-# :fgetc_done ; (0x600230)
+# :fgetc_done ; (0x60020D)
 	5A                              # POP_RDX                             ; Restore RDX
 	5E                              # POP_RSI                             ; Restore RSI
 	5F                              # POP_RDI                             ; Restore RDI
@@ -366,13 +369,13 @@
 ;; File_Print function
 ;; Receives CHAR* in RAX
 ;; calls fputc for every non-null char
-# :File_Print ; (0x600234)
+# :File_Print ; (0x600211)
 	57                              # PUSH_RDI                            ; Protect RDI
 	56                              # PUSH_RSI                            ; Protect RSI
 	4889C7                          # COPY_RAX_to_RDI                     ; Protect S
 	85C0                            # TEST_EAX_EAX                        ; Protect against nulls
 	74 13                           # JE8 !File_Print_Done                ; Simply don't try to print them
-# :File_Print_Loop ; (0x60023D)
+# :File_Print_Loop ; (0x60021A)
 	31C0                            # XOR_EAX_EAX                         ; Zero RAX
 	8A07                            # LOAD8_into_AL_from_Address_RDI      ; Read byte
 	85C0                            # TEST_EAX_EAX                        ; Check for NULL
@@ -382,7 +385,7 @@
 	4883C7 01                       # ADDI8_to_RDI !1                     ; S = S + 1
 	EB ED                           # JMP8 !File_Print_Loop               ; Keep going
 
-# :File_Print_Done ; (0x6002500)
+# :File_Print_Done ; (0x60022D)
 	5E                              # POP_RSI                             ; Restore RSI
 	5F                              # POP_RDI                             ; Restore RDI
 	C3                              # RETURN
@@ -391,7 +394,7 @@
 ;; fputc function
 ;; receives CHAR in RAX and load FILE* from stdout
 ;; writes char and returns
-# :fputc ; (0x600253)
+# :fputc ; (0x600230)
 	57                              # PUSH_RDI                            ; Protect RDI
 	56                              # PUSH_RSI                            ; Protect RSI
 	52                              # PUSH_RDX                            ; Protect RDX
@@ -409,16 +412,10 @@
 	C3                              # RETURN
 
 
-# :default_file ; (0x60026B)
-	6B 61 65 6D 2E 61 6D 64 36 34 00      ; "kaem.amd64"
-# :prefix ; (0x600276)
-	20 2B 3E 20 00                  ; " +> "
-# :hard ; (0x60027B)
-	53 75 62 70 72 6F 63 65 73 73 20 65 72 72 6F 72 0A 41 42 4F 52 54 49 4E 47 20 48 41 52 44 0A 00 ; "Subprocess error\nABORTING HARD\n"
-# :max_args ; (0x60029B)
-	00080000 00000000               ; 2048
-# :max_string ; (0x6002A3)
-	00100000 00000000               ; 4096
-# :status ; (0x6002AB)
-	00000000 00000000               ; NULL
-# :ELF_end ; (0x6002B3)
+# :default_file ; (0x600248)
+	6B 61 65 6D 2E 61 6D 64 36 34 00                      ; "kaem.amd64"
+# :prefix ; (0x600253)
+	20 2B 3E 20 00                                        ; " +> "
+# :hard ; (0x600258)
+	53 75 62 70 72 6F 63 65 73 73 20 65 72 72 6F 72 0A 00 ; "Subprocess error\n"
+# :ELF_end ; (0x60026A)
