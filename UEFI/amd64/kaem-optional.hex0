@@ -152,9 +152,9 @@ F6 03 00 00                             ; SizeOfRawData
     # Open Loaded Image protocol
     50              ; PUSH_RAX                                          # allocate stack for image
     4989E0          ; COPY_RSP_to_R8                                    # arg3 = &image
-    488B15 3F030000 ; LOADI64_rel_RDX %LOADED_IMAGE_PROTOCOL_8          # EFI_LOADED_IMAGE_PROTOCOL_GUID (last 64 bits)
+    488B15 3F030000 ; LOAD64_rel_RDX %LOADED_IMAGE_PROTOCOL_8           # EFI_LOADED_IMAGE_PROTOCOL_GUID (last 64 bits)
     52              ; PUSH_RDX                                          # push last 64 bits onto stack
-    488B15 2F030000 ; LOADI64_rel_RDX %LOADED_IMAGE_PROTOCOL            # EFI_LOADED_IMAGE_PROTOCOL_GUID (first 64 bits)
+    488B15 2F030000 ; LOAD64_rel_RDX %LOADED_IMAGE_PROTOCOL             # EFI_LOADED_IMAGE_PROTOCOL_GUID (first 64 bits)
     52              ; PUSH_RDX                                          # push first 64 bits onto
     4889E2          ; COPY_RSP_to_RDX                                   # arg2 = &guid
     6A 01           ; PUSH !1                                           # arg6 = EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
@@ -191,9 +191,9 @@ F6 03 00 00                             ; SizeOfRawData
     # Get root file system
     50              ; PUSH_RAX                                          # allocate stack for rootfs
     4989E0          ; COPY_RSP_to_R8                                    # arg3 = &rootfs
-    488B15 EE020000 ; LOADI64_rel_RDX %SIMPLE_FS_PROTOCOL_8             # EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID (last 64 bits)
+    488B15 EE020000 ; LOAD64_rel_RDX %SIMPLE_FS_PROTOCOL_8              # EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID (last 64 bits)
     52              ; PUSH_RDX                                          # push last 64 bits onto stack
-    488B15 DE020000 ; LOADI64_rel_RDX %SIMPLE_FS_PROTOCOL               # EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID (first 64 bits)
+    488B15 DE020000 ; LOAD64_rel_RDX %SIMPLE_FS_PROTOCOL                # EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID (first 64 bits)
     52              ; PUSH_RDX                                          # push first 64 bits onto stack
     4889E2          ; COPY_RSP_to_RDX                                   # arg2 = &guid
     6A 01           ; PUSH !1                                           # arg6 = EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
@@ -335,9 +335,9 @@ F6 03 00 00                             ; SizeOfRawData
     50              ; PUSH_RAX                                          # allocate stack for file_size
     4989E0          ; COPY_RSP_to_R8                                    # arg3 = &file_size
     49C700 00100000 ; STOREI32_into_Address_R8 %0x1000                  # file_size = 0x1000
-    488B15 B2010000 ; LOADI64_rel_RDX %SIMPLE_FS_PROTOCOL_8             # EFI_FILE_INFO_PROTOCOL (last 64 bits) 
+    488B15 B2010000 ; LOAD64_rel_RDX %SIMPLE_FS_PROTOCOL_8              # EFI_FILE_INFO_PROTOCOL (last 64 bits) 
     52              ; PUSH_RDX                                          # push last 64 bits onto stack
-    488B15 B2010000 ; LOADI64_rel_RDX %FILE_INFO_PROTOCOL               # EFI_FILE_INFO_PROTOCOL (first 64 bits)
+    488B15 B2010000 ; LOAD64_rel_RDX %FILE_INFO_PROTOCOL                # EFI_FILE_INFO_PROTOCOL (first 64 bits)
     52              ; PUSH_RDX                                          # push first 64 bits onto stack
     4889E2          ; COPY_RSP_to_RDX                                   # arg2 = &guid
     4889F9          ; COPY_RDI_to_RCX                                   # arg1 = fcmd
@@ -458,9 +458,9 @@ F6 03 00 00                             ; SizeOfRawData
     # Open Child Image
     50              ; PUSH_RAX                                          # allocate stack for child_image
     4989E0          ; COPY_RSP_to_R8                                    # arg3 = &child_image
-    488B15 B1000000 ; LOADI64_rel_RDX %LOADED_IMAGE_PROTOCOL_8          # EFI_LOADED_IMAGE_PROTOCOL_GUID (last 64 bits)
+    488B15 B1000000 ; LOAD64_rel_RDX %LOADED_IMAGE_PROTOCOL_8           # EFI_LOADED_IMAGE_PROTOCOL_GUID (last 64 bits)
     52              ; PUSH_RDX                                          # push last 64 bits onto stack
-    488B15 A1000000 ; LOADI64_rel_RDX %LOADED_IMAGE_PROTOCOL            # EFI_LOADED_IMAGE_PROTOCOL_GUID (first 64 bits)
+    488B15 A1000000 ; LOAD64_rel_RDX %LOADED_IMAGE_PROTOCOL             # EFI_LOADED_IMAGE_PROTOCOL_GUID (first 64 bits)
     52              ; PUSH_RDX                                          # push first 64 bits onto
     4889E2          ; COPY_RSP_to_RDX                                   # arg2 = &guid
     6A 01           ; PUSH !1                                           # arg6 = EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
@@ -474,7 +474,7 @@ F6 03 00 00                             ; SizeOfRawData
 
     488958 38       ; STORE64_from_RBX_into_Address_RAX_Immediate8 !56  # child_image->load_options = command
     488970 30       ; STORE64_from_RSI_into_Address_RAX_Immediate8 !48  # set child_image->load_options_size
-    488B0D EA000000 ; LOADI64_rel_RCX %image                            # get image
+    488B0D EA000000 ; LOAD64_rel_RCX %image                             # get image
     488B49 18       ; LOAD64_into_RCX_from_Address_RCX_Immediate8 !24   # image->device
     488948 18       ; STORE64_from_RCX_into_Address_RCX_Immediate8 !24  # child_image->device = image->device
 
@@ -519,7 +519,7 @@ F6 03 00 00                             ; SizeOfRawData
     C3              ; RET
 
 # :File_Print [_start+0x345]
-    488B0D A2000000 ; LOADI64_rel_RCX %system_out                       # get system_out
+    488B0D A2000000 ; LOAD64_rel_RCX %system_out                        # get system_out
     50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
     50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
     FF51 08         ; CALL_RCX_Immediate8 !8                            # system->out->output_string(system->out, WCHAR*)
