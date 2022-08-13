@@ -158,10 +158,10 @@ A3 01 00 00                             ; SizeOfRawData
     # Open Loaded Image protocol
     50              ; PUSH_RAX                                          # allocate stack for image
     4989E0          ; COPY_RSP_to_R8                                    # arg3 = &image
-    488B15 6F010000 ; LOAD64_rel_RDX !LOADED_IMAGE_PROTOCOL_8           # EFI_LOADED_IMAGE_PROTOCOL_GUID (last 64 bits)
+    488B15 6F010000 ; LOAD64_rel_RDX %LOADED_IMAGE_PROTOCOL_8           # EFI_LOADED_IMAGE_PROTOCOL_GUID (last 64 bits)
 # [_start+0x1C]
     52              ; PUSH_RDX                                          # push last 64 bits onto stack
-    488B15 5F010000 ; LOAD64_rel_RDX !LOADED_IMAGE_PROTOCOL             # EFI_LOADED_IMAGE_PROTOCOL_GUID (first 64 bits)
+    488B15 5F010000 ; LOAD64_rel_RDX %LOADED_IMAGE_PROTOCOL             # EFI_LOADED_IMAGE_PROTOCOL_GUID (first 64 bits)
 # [_start+0x24]
     52              ; PUSH_RDX                                          # push first 64 bits onto stack
     4889E2          ; COPY_RSP_to_RDX                                   # arg2 = &guid
