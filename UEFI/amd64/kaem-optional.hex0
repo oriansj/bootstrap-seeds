@@ -212,7 +212,7 @@ F7 03 00 00                             ; SizeOfRawData
     FF51 08         ; CALL_RCX_Immediate8 !8                            # rootfs->open_volume(rootfs, &rootdir)
     58              ; POP_RAX                                           # deallocate stack
     58              ; POP_RAX                                           # deallocate stack
-    415D            ; POP_R13                                           # save &rootdir
+    415D            ; POP_R13                                           # save rootdir
 
     # Open file for reading
     52              ; PUSH_RDX                                          # allocate stack for fin
@@ -496,14 +496,14 @@ F7 03 00 00                             ; SizeOfRawData
 
 # :print_error [_start+0x323]
     50              ; PUSH_RAX                                          # save exit code
-    488B15 8E000000 ; LOAD64_into_RDX_rel32 %subprocess_error           # get error message
+    488D15 8E000000 ; LEA_RDX_rel %subprocess_error                     # get error message
     E8 16000000     ; CALLI32 %File_Print                               # print it
     58              ; POP_RAX                                           # restore exit code
 
 # Close script file and exit
 # :terminate [_start+0x331]
     # Free pool
-    4889C3          ; COPY_RBX_to_RCX                                   # arg1 = command
+    4889D9          ; COPY_RBX_to_RCX                                   # arg1 = command
     50              ; PUSH_RAX                                          # save exit code
     50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
     41FF56 48       ; CALL_R14_Immediate8 !72                           # system->boot->free_pool(commmand)
