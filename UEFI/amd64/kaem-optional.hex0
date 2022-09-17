@@ -120,9 +120,9 @@ F0 00                           # SizeOfOptionalHeader
 # [0x148]
 # Start of section headers
 00 00 00 00 00 00 00 00                 ; Name of the section (empty) but could set to ".text"
-F7 03 00 00                             ; VirtualSize
+18 04 00 00                             ; VirtualSize
 00 10 00 00                             ; VirtualAddress
-F7 03 00 00                             ; SizeOfRawData
+18 04 00 00                             ; SizeOfRawData
 70 01 00 00                             ; PointerToRawData
 00 00 00 00                             ; PointerToRelocations
 00 00 00 00                             ; PointerToLinenumbers
@@ -136,462 +136,459 @@ F7 03 00 00                             ; SizeOfRawData
 
 # efi_main(void *image_handle, struct efi_system_table *system)
 # :_start
-    4889E5          ; COPY_RSP_to_RBP                                   # save stack pointer
-    48890D D5030000 ; STORE64_from_RCX_rel32 %image_handle              # save image_handle
-    488B42 40       ; LOAD64_into_RAX_from_Address_RDX_Immediate8 !64   # system->out
-    488905 DA030000 ; STORE64_from_RAX_rel32 %system_out                # save system->out
-    4C8B72 60       ; LOAD64_into_R14_from_Address_RDX_Immediate8 !96   # system->boot
+    4889E5          ; mov_rbp,rsp                                # save stack pointer
+    48890D E6030000 ; mov_[rip+DWORD],rcx %image_handle          # save image_handle
+    4889CB          ; mov_rbx,rcx                                # save image_handle
+    488B42 40       ; mov_rax,[rdx+BYTE] !64                     # system->out
+    488905 F8030000 ; mov_[rip+DWORD],rax %system_out            # save system->out
+    4C8B72 60       ; mov_r14,[rdx+BYTE] !96                     # system->boot
 
-    31C9            ; XOR_ECX_ECX                                       # timeout = 0
-    31D2            ; XOR_EDX_EDX                                       # watchdog_code = 0
-    4D31C0          ; XOR_R8_R8                                         # data_size = 0
-    4D31C9          ; XOR_R9_R9                                         # watchdog_data = 0
-    4883EC 20       ; SUBI8_RSP !32                                     # allocate shadow stack space for UEFI function
-    41FF96 F0000000 ; CALL_R14_Immediate32 %240                         # system->boot->set_watchdog_timer
+    31C9            ; xor_ecx,ecx                                # timeout = 0
+    31D2            ; xor_edx,edx                                # watchdog_code = 0
+    4D31C0          ; xor_r8,r8                                  # data_size = 0
+    4D31C9          ; xor_r9,r9                                  # watchdog_data = 0
+    4883EC 20       ; sub_rsp, !32                               # allocate shadow stack space for UEFI function
+    41FF96 F0000000 ; call_[r14+DWORD] %240                      # system->boot->set_watchdog_timer
 
     # Open Loaded Image protocol
-    50              ; PUSH_RAX                                          # allocate stack for image
-    4989E0          ; COPY_RSP_to_R8                                    # arg3 = &image
-    488B15 40030000 ; LOAD64_rel_RDX %LOADED_IMAGE_PROTOCOL_8           # EFI_LOADED_IMAGE_PROTOCOL_GUID (last 64 bits)
-    52              ; PUSH_RDX                                          # push last 64 bits onto stack
-    488B15 30030000 ; LOAD64_rel_RDX %LOADED_IMAGE_PROTOCOL             # EFI_LOADED_IMAGE_PROTOCOL_GUID (first 64 bits)
-    52              ; PUSH_RDX                                          # push first 64 bits onto
-    4889E2          ; COPY_RSP_to_RDX                                   # arg2 = &guid
-    6A 01           ; PUSH !1                                           # arg6 = EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
-    6A 00           ; PUSH !0                                           # arg5 = NULL
-    4C8B0D 8F030000 ; LOAD64_into_R9_rel32 %image_handle                # arg4 = image_handle
-    4C89C9          ; COPY_R9_to_RCX                                    # arg1 = image_handle
-    4883EC 20       ; SUBI8_RSP !32                                     # allocate shadow stack space for UEFI function
-    41FF96 18010000 ; CALL_R14_Immediate32 %280                         # system->boot->open_protocol(image_handle, &guid, &image, image_handle, 0, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL)
-    488B4424 40     ; LOAD64_into_RAX_from_Address_RSP_Immediate8 !64   # get_image
-    488905 7D030000 ; STORE64_from_RAX_rel32 %image                     # save image
+    4989D9          ; mov_r9,rbx                                 # arg4 = image_handle
+    488D15 3F030000 ; lea_rdx,[rip+DWORD] %LOADED_IMAGE_PROTOCOL # guid = &LOADED_IMAGE_PROTOCOL
+    4889D9          ; mov_rcx,rbx                                # arg1 = image_handle
+    E8 F6020000     ; call %open_protocol                        # open protocol
+    4889C7          ; mov_rdi,rax                                # save image
+    488905 AB030000 ; mov_[rip+DWORD],rax %image                 # save image
 
-    # Command line args
-    4889C1          ; COPY_RAX_to_RCX                                   # copy image to rcx
-    488B58 38       ; LOAD64_into_RBX_from_Address_RAX_Immediate8 !56   # options = image->load_options
-
-    # Skip application name
-# :loop_options1 [_start+0x71]
-    4883C3 02       ; ADDI8_RBX !2                                      # ++options
-    8A03            ; LOAD8_AL_from_Address_RBX                         # *options
-    3C 20           ; CMPI8_AL !0x20                                    # if *options == ' '
-    74 0D           ; JE8 !loop_options2                                # then jump
-    84C0            ; TEST_AL_AL                                        # if options != 0
-    75 F2           ; JNE8 !loop_options1                               # then loop
-
-    # Use default file
-    4C8D25 13030000 ; LEA_R12_rel %default_file                         # Use "kaem.amd64"
-    EB 07           ; JMP8 !root_fs                                     # jump
-
-# :loop_options2 [_start+0x88]
-    4883C3 02       ; ADDI8_RBX !2                                      # ++options
-    4989DC          ; COPY_RBX_to_R12                                   # save input file
-
-# :root_fs [_start+0x8F]
     # Get root file system
-    50              ; PUSH_RAX                                          # allocate stack for rootfs
-    4989E0          ; COPY_RSP_to_R8                                    # arg3 = &rootfs
-    488B15 EF020000 ; LOAD64_rel_RDX %SIMPLE_FS_PROTOCOL_8              # EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID (last 64 bits)
-    52              ; PUSH_RDX                                          # push last 64 bits onto stack
-    488B15 DF020000 ; LOAD64_rel_RDX %SIMPLE_FS_PROTOCOL                # EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID (first 64 bits)
-    52              ; PUSH_RDX                                          # push first 64 bits onto stack
-    4889E2          ; COPY_RSP_to_RDX                                   # arg2 = &guid
-    6A 01           ; PUSH !1                                           # arg6 = EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
-    6A 00           ; PUSH !0                                           # arg5 = NULL
-    4C8B0D 2E030000 ; LOAD64_into_R9_rel32 %image_handle                # arg4 = image_handle
-    488B49 18       ; LOAD64_into_RCX_from_Address_RCX_Immediate8 !24   # arg1 = root_device = image->device
-    4883EC 20       ; SUBI8_RSP !32                                     # allocate shadow stack space for UEFI function
-    41FF96 18010000 ; CALL_R14_Immediate32 %280                         # system->boot->open_protocol(root_device, &guid, &rootfs, image_handle, 0, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL)
-    488B4C24 40     ; LOAD64_into_RCX_from_Address_RSP_Immediate8 !64   # get rootfs
+    4989D9          ; mov_r9,rbx                                 # arg4 = image_handle
+    488D15 33030000 ; lea_rdx,[rip+DWORD] %SIMPLE_FS_PROTOCOL    # guid = &SIMPLE_FS_PROTOCOL
+    488B4F 18       ; mov_rcx,[rdi+BYTE] !24                     # arg1 = root_device = image->device
+    48890D A6030000 ; mov_[rip+DWORD],rcx %root_device           # save root_device
+    E8 D2020000     ; call %open_protocol                        # open protocol
+    4889C1          ; mov_rcx,rax                                # get rootfs
 
     # Get root directory
-    52              ; PUSH_RDX                                          # allocate stack for rootdir
-    4889E2          ; COPY_RSP_to_RDX                                   # arg3 = &rootdir
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    FF51 08         ; CALL_RCX_Immediate8 !8                            # rootfs->open_volume(rootfs, &rootdir)
-    58              ; POP_RAX                                           # deallocate stack
-    58              ; POP_RAX                                           # deallocate stack
-    415D            ; POP_R13                                           # save rootdir
+    488D15 8F030000 ; lea_rdx,[rip+DWORD] %rootdir     # arg2 = &rootdir
+    50              ; push_rax                         # allocate shadow stack space for UEFI function space for UEFI function
+    50              ; push_rax                         # allocate shadow stack space for UEFI function space for UEFI function
+    FF51 08         ; call_[rcx+BYTE] !8               # rootfs->open_volume(rootfs, &rootdir)
+    58              ; pop_rax                          # deallocate stack
+    58              ; pop_rax                          # deallocate stack
+
+    # Push command line arguments onto stack
+    488B5F 38       ; mov_rbx,[rdi+BYTE] !56           # options = image->load_options
+    4889DA          ; mov_rdx,rbx                      # save beginning of load_options
+    48035F 30       ; add_rbx,[rdi+BYTE] !48           # go to the end of load_options
+    6A 00           ; push !0                          # Save end of arguments (NULL) onto stack
+# :loop_options [_start+0x85]
+    4839D3          ; cmp_rbx,rdx                      # Check if we are done
+    74 14           ; je8 !loop_options_done           # We are done
+    4883EB 02       ; sub_rbx, !2                      # --options
+    8A03            ; mov_al,[rbx]                     # *options
+    3C 20           ; cmp_al, !0x20                    # if *options != ' '
+    75 F1           ; jne8 !loop_options               # then continue looping
+    C603 00         ; mov_[rbx], !0                    # zero it
+    4883C3 02       ; add_rbx, !2                      # ++options
+    53              ; push_rbx                         # push another argument onto stack
+    EB E7           ; jmp8 !loop_options               # next argument
+# :loop_options_done [_start+0x9E]
+
+    4158            ; pop_r8                           # get input file
+    4D85C0          ; test_r8,r8                       # Check if argument is specified
+    75 07           ; jne8 !arg_done                   # then use it
+    # Else use default_file
+    4C8D05 FE020000 ; lea_r8,[rip+DWORD] %default_file # Use "kaem.amd64"
+# :arg_done [_start+0xAC]
 
     # Open file for reading
-    52              ; PUSH_RDX                                          # allocate stack for fin
-    4889E2          ; COPY_RSP_to_RDX                                   # arg2 = &fin
-    6A 01           ; PUSH !1                                           # arg5 = EFI_FILE_READ_ONLY
-    6A 01           ; PUSH !1                                           # prepare to set arg4 to EFI_FILE_MODE_READ
-    4159            ; POP_R9                                            # arg4 = EFI_FILE_MODE_READ
-    4D89E0          ; COPY_R12_to_R8                                    # arg3 = in
-    4C89E9          ; COPY_R13_to_RCX                                   # arg1 = rootdir
-    4883EC 20       ; SUBI8_RSP !32                                     # allocate shadow stack space for UEFI function
-    FF51 08         ; CALL_RCX_Immediate8 !8                            # rootdir->open()
-    85C0            ; TEST_EAX_EAX                                      # if status != EFI_SUCCESS
-    0F85 51020000   ; JNE32 %abort                                      # then exit without closing file
-    4C8B6424 28     ; LOAD64_into_R12_from_Address_RSP_Immediate8 !40   # get fin
+    52              ; push_rdx                         # allocate stack for fin
+    4889E2          ; mov_rdx,rsp                      # arg2 = &fin
+    6A 01           ; push !1                          # arg5 = EFI_FILE_READ_ONLY
+    6A 01           ; push !1                          # prepare to set arg4 to EFI_FILE_MODE_READ
+    4159            ; pop_r9                           # arg4 = EFI_FILE_MODE_READ
+                                                       # arg3 = in
+    488B0D 43030000 ; mov_rcx,[rip+DWORD] %rootdir     # arg1 = rootdir
+    4883EC 20       ; sub_rsp, !32                     # allocate shadow stack space for UEFI function
+    FF51 08         ; call_[rcx+BYTE] !8               # rootdir->open()
+    85C0            ; test_eax,eax                     # if status != EFI_SUCCESS
+    0F85 3E020000   ; jne %abort                       # then exit without closing file
+    4C8B6424 28     ; mov_r12,[rsp+BYTE] !40           # get fin
 
     # Allocate pool for command
-    52              ; PUSH_RDX                                          # allocate stack for command
-    4989E0          ; COPY_RSP_to_R8                                    # arg3 = &command
-    31D2            ; XOR_EDX_EDX                                       # zero RDX
-    B6 10           ; LOADI8_DH !0x10                                   # arg2 = 4096 = 0x1000
-    6A 02           ; PUSH !2
-    59              ; POP_RCX                                           # arg1 = EFI_LOADER_DATA
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    41FF56 40       ; CALL_R14_Immediate8 !64                           # system->boot->allocate_pool(EFI_LOADER_DATA, 4096, &commmand)
-    488B5C24 18     ; LOAD64_into_RBX_from_Address_RSP_Immediate8 !24   # get command
+    31D2            ; xor_edx,edx                      # zero RDX
+    B6 10           ; mov_dh, !0x10                    # arg2 = 4096 = 0x1000
+    E8 8B020000     ; call %allocate_pool              # allocate memory
+    4889C3          ; mov_rbx,rax                      # get command
 
-# :next_command [_start+0x10D]
-    31F6            ; XOR_ESI_ESI                                       # i = 0
-    4D31FF          ; XOR_R15_R15                                       # command_length = 0
+# :next_command [_start+0xDD]
+    31F6            ; xor_esi,esi                      # i = 0
+    4D31FF          ; xor_r15,r15                      # command_length = 0
 
-# :read_command [_start+0x112]
-    E8 3E020000     ; CALLI32 %read_byte                                # read another byte c
+# :read_command [_start+0xE2]
+    E8 36020000     ; call %read_byte                   # read another byte c
 
-    3C 0A           ; CMPI8_AL !0xa                                     # if c == '\n'
-    74 2A           ; JE8 !read_command_done                            # then we are done with this command
+    3C 0A           ; cmp_al, !0xa                     # if c == '\n'
+    74 2A           ; je8 !read_command_done           # then we are done with this command command command
 
-    3C 20           ; CMPI8_AL !0x20                                    # if c == ' '
-    75 08           ; JNE8 !read_command_comments
-    4D85FF          ; TEST_R15_R15                                      # and command_length == 0
-    75 03           ; JNE8 !read_command_comments
-    4989F7          ; COPY_RSI_to_R15                                   # command_length = i
+    3C 20           ; cmp_al, !0x20                    # if c == ' '
+    75 08           ; jne8 !read_command_comments
+    4D85FF          ; test_r15,r15                     # and command_length == 0
+    75 03           ; jne8 !read_command_comments
+    4989F7          ; mov_r15,rsi                      # command_length = i
 
-# :read_command_comments [_start+0x127]
-    3C 23           ; CMPI8_AL !0x23                                    # if c == '#' then process comment
-    75 0B           ; JNE8 !read_command_store_char                     # else store char
+# :read_command_comments [_start+0xF7]
+    3C 23           ; cmp_al, !0x23                    # if c == '#' then process comment
+    75 0B           ; jne8 !read_command_store_char    # else store char
 
-# :read_command_skip_comment [_start+0x12B]
-    E8 25020000     ; CALLI32 %read_byte                                # get another char
-    3C 0A           ; CMPI8_AL !0xa                                     # if c == '\n'
-    75 F7           ; JNE8 !read_command_skip_comment                   # continue reading until newline
+# :read_command_skip_comment [_start+0xFB]
+    E8 1D020000     ; call %read_byte                  # get another char
+    3C 0A           ; cmp_al, !0xa                     # if c == '\n'
+    75 F7           ; jne8 !read_command_skip_comment  # continue reading until newline
 
-    EB D7           ; JMP8 !next_command                                # deal with another line
+    EB D7           ; jmp8 !next_command               # deal with another line
 
-# :read_command_store_char [_start+0x136]
-    4801F3          ; ADD_RSI_to_RBX                                    # rbx = &command[i]
-    668903          ; STORE16_AX_into_Address_RBX                       # command[i] = c
-    4829F3          ; SUB_RSI_from_RBX                                  # rbx = &command[0]
-    4883C6 02       ; ADDI8_RSI !2                                      # location of the next char
-    EB CD           ; JMP8 !read_command                                # continue looping
+# :read_command_store_char [_start+0x106]
+    4801F3          ; add_rbx,rsi                      # rbx = &command[i]
+    668903          ; mov_[rbx],ax                     # command[i] = c
+    4829F3          ; sub_rbx,rsi                      # rbx = &command[0]
+    4883C6 02       ; add_rsi, !2                      # location of the next char
+    EB CD           ; jmp8 !read_command               # continue looping
 
-# :read_command_done [_start+0x145]
-    4D85FF          ; TEST_R15_R15                                      # if command_length == 0
-    74 C3           ; JE8 !next_command                                 # deal with another line
+# :read_command_done [_start+0x115]
+    4D85FF          ; test_r15,r15                     # if command_length == 0
+    74 C3           ; je8 !next_command                # deal with another line
 
-    4801F3          ; ADD_RSI_to_RBX                                    # rbx = &command[i]
-    66C703 0000     ; STOREI16_into_Address_RBX @0                      # command[i] = 0
-    4829F3          ; SUB_RSI_from_RBX                                  # rbx = &command[0]
+    4801F3          ; add_rbx,rsi                      # rbx = &command[i]
+    66C703 0000     ; mov_[rbx],WORD @0                # command[i] = 0
+    4829F3          ; sub_rbx,rsi                      # rbx = &command[0]
 
-    4883C6 02       ; ADDI8_RSI !2                                      # add 2 to get string length with NULL terminator
+    4883C6 02       ; add_rsi, !2                      # add 2 to get string length with NULL terminator
 
-    488D15 4F020000 ; LEA_RDX_rel %prefix                               # get prefix " +> "
-    E8 E1010000     ; CALLI32 %File_Print                               # print it
-    4889DA          ; COPY_RBX_to_RDX                                   # get command
-    E8 D9010000     ; CALLI32 %File_Print                               # print it
-    488D15 65020000 ; LEA_RDX_rel %suffix                               # get suffix "\n\r"
-    E8 CD010000     ; CALLI32 %File_Print                               # print it
+    488D15 90020000 ; lea_rdx,[rip+DWORD] %prefix      # get prefix " +> "
+    E8 D9010000     ; call %File_Print                 # print it
+    4889DA          ; mov_rdx,rbx                      # get command
+    E8 D1010000     ; call %File_Print                 # print it
+    488D15 A6020000 ; lea_rdx,[rip+DWORD] %suffix      # get suffix "\n\r"
+    E8 C5010000     ; call %File_Print                 # print it
 
     # Remove command line options
-    4901DF          ;  ADD_RBX_to_R15                                   # go to the space separating command and its options
-    6641C707 0000   ; STOREI16_into_Address_R15 @0                      # zero it to hide command line options
+    4901DF          ; add_r15,rbx                      # go to the space separating command and its options
+    6641C707 0000   ; mov_[r15],WORD @0                # zero it to hide command line options
 
     # Open executable file for reading
-    52              ; PUSH_RDX                                          # allocate stack for fcmd
-    4889E2          ; COPY_RSP_to_RDX                                   # arg2 = &fcmd
-    6A 01           ; PUSH !1                                           # arg5 = EFI_FILE_READ_ONLY
-    6A 01           ; PUSH !1                                           # prepare to set arg4 to EFI_FILE_MODE_READ
-    4159            ; POP_R9                                            # arg4 = EFI_FILE_MODE_READ
-    4989D8          ; COPY_RBX_to_R8                                    # arg3 = command
-    4C89E9          ; COPY_R13_to_RCX                                   # arg1 = rootdir
-    4883EC 20       ; SUBI8_RSP !32                                     # allocate shadow stack space for UEFI function
-    FF51 08         ; CALL_RCX_Immediate8 !8                            # rootdir->open()
-    85C0            ; TEST_EAX_EAX                                      # if status != EFI_SUCCESS
-    0F85 82010000   ; JNE32 %print_error                                # then exit
-    4883C4 28       ; ADDI8_RSP !40                                     # deallocate stack
-    5F              ; POP_RDI                                           # get fcmd
+    52              ; push_rdx                         # allocate stack for fcmd
+    4889E2          ; mov_rdx,rsp                      # arg2 = &fcmd
+    6A 01           ; push !1                          # arg5 = EFI_FILE_READ_ONLY
+    6A 01           ; push !1                          # prepare to set arg4 to EFI_FILE_MODE_READ
+    4159            ; pop_r9                           # arg4 = EFI_FILE_MODE_READ
+    4989D8          ; mov_r8,rbx                       # arg3 = command
+    488B0D 9A020000 ; mov_rcx,[rip+DWORD] %rootdir     # arg1 = rootdir
+    4883EC 20       ; sub_rsp, !32                     # allocate shadow stack space for UEFI function
+    FF51 08         ; call_[rcx+BYTE] !8               # rootdir->open()
+    85C0            ; test_eax,eax                     # if status != EFI_SUCCESS
+    0F85 3F010000   ; jne %print_error                 # then exit
+    4883C4 28       ; add_rsp, !40                     # deallocate stack
+    5F              ; pop_rdi                          # get fcmd
 
     # Restore command line arguments
     6641C707 2000   ; STOREI16_into_Address_R15 @0x20                   # restore command line options by readding ' '
 
     # Allocate pool for file_info
-    52              ; PUSH_RDX                                          # allocate stack for file_info
-    4989E0          ; COPY_RSP_to_R8                                    # arg3 = &file_info
-    31D2            ; XOR_EDX_EDX                                       # zero RDX
-    B6 10           ; LOADI8_DH !0x10                                   # arg2 = 4096 = 0x1000
-    6A 02           ; PUSH !2
-    59              ; POP_RCX                                           # arg1 = EFI_LOADER_DATA
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    41FF56 40       ; CALL_R14_Immediate8 !64                           # system->boot->allocate_pool(EFI_LOADER_DATA, 4096, &commmand)
-    58              ; POP_RAX                                           # deallocate stack
-    58              ; POP_RAX                                           # deallocate stack
-    58              ; POP_RAX                                           # deallocate stack
-    4159            ; POP_R9                                            # get file_info (arg4 for get_info)
+    31D2            ; xor_edx,edx                      # zero RDX
+    B6 10           ; mov_dh, !0x10                    # arg2 = 4096 = 0x1000
+    E8 DC010000     ; call %allocate pool              # allocate memory
+    4989C1          ; mov_r9,rax                       # get file_info (arg4 for get_info)
 
     # Get file info
-    4151            ; PUSH_R9                                           # save file_info
-    50              ; PUSH_RAX                                          # allocate stack for file_size
-    4989E0          ; COPY_RSP_to_R8                                    # arg3 = &file_size
-    49C700 00100000 ; STOREI32_into_Address_R8 %0x1000                  # file_size = 0x1000
-    488B15 B2010000 ; LOAD64_rel_RDX %SIMPLE_FS_PROTOCOL_8              # EFI_FILE_INFO_PROTOCOL (last 64 bits) 
-    52              ; PUSH_RDX                                          # push last 64 bits onto stack
-    488B15 B2010000 ; LOAD64_rel_RDX %FILE_INFO_PROTOCOL                # EFI_FILE_INFO_PROTOCOL (first 64 bits)
-    52              ; PUSH_RDX                                          # push first 64 bits onto stack
-    4889E2          ; COPY_RSP_to_RDX                                   # arg2 = &guid
-    4889F9          ; COPY_RDI_to_RCX                                   # arg1 = fcmd
-    4883EC 20       ; SUBI8_RSP !32                                     # allocate shadow stack space for UEFI function
-    FF51 40         ; CALL_RCX_Immediate8 !64                           # fcmd->get_info(fcmd, &guid, &file_size, file_info)
-    4883C4 38       ; ADDI8_RSP !56                                     # deallocate stack
-    59              ; POP_RCX                                           # restore file_info
-    488B51 08       ; LOAD64_into_RDX_from_Address_RCX_Immediate8 !8    # get file_size
+    50              ; push_rax                         # save file_info
+    50              ; push_rax                         # allocate stack for file_size
+    4989E0          ; mov_r8,rsp                       # arg3 = &file_size
+    49C700 00100000 ; mov_[r8], %0x1000                # file_size = 0x1000
+    488D15 FB010000 ; lea_rdx,[rip+DWORD] %FILE_INFO_PROTOCOL # arg2 = &EFI_FILE_INFO_PROTOCOL
+    4889F9          ; mov_rcx,rdi                      # arg1 = fcmd
+    4883EC 20       ; sub_rsp, !32                     # allocate shadow stack space for UEFI function
+    FF51 40         ; call_[rcx+BYTE] !64              # fcmd->get_info(fcmd, &guid, &file_size, file_info)
+    4883C4 28       ; add_rsp, !40                     # deallocate stack
+    59              ; pop_rcx                          # restore file_info
+    488B51 08       ; mov_rdx,[rcx+BYTE] !8            # get file_size
 
     # Free file_info pool
-    52              ; PUSH_RDX                                          # save file_size onto stack
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    41FF56 48       ; CALL_R14_Immediate8 !72                           # system->boot->free_pool(file_info)
-    58              ; POP_RAX                                           # deallocate stack
-    5A              ; POP_RDX                                           # restore file_size from stack (arg2 for allocate_pool)
+    52              ; push_rdx                         # save file_size onto stack
+    50              ; push_rax                         # allocate shadow stack space for UEFI function
+    41FF56 48       ; call_[r14+BYTE] !72              # system->boot->free_pool(file_info)
+    58              ; pop_rax                          # deallocate stack
+    5A              ; pop_rdx                          # restore file_size from stack (arg2 for allocate_pool)
 
-    # Allocate pool for executable
-    52              ; PUSH_RDX                                          # save file_size onto stack
-    52              ; PUSH_RDX                                          # allocate stack for executable
-    4989E0          ; COPY_RSP_to_R8                                    # arg3 = &executable
-    6A 02           ; PUSH !2
-    59              ; POP_RCX                                           # arg1 = EFI_LOADER_DATA
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    41FF56 40       ; CALL_R14_Immediate8 !64                           # system->boot->allocate_pool(EFI_LOADER_DATA, file_size, &executable)
-    58              ; POP_RAX                                           # deallocate stack
-    58              ; POP_RAX                                           # deallocate stack
-    58              ; POP_RAX                                           # deallocate stack
-    415F            ; POP_R15                                           # get executable
-    5A              ; POP_RDX                                           # restore file_size
+    # Allocate pool for executable [_start+0x1BA]
+    52              ; push_rdx                         # save file_size onto stack
+    E8 A5010000     ; call %allocate_pool              # allocate memory
+    4989C7          ; mov_r15,rax                      # get executable
+    5A              ; pop_rdx                          # restore file_size
 
     # Load executable into memory
-    52              ; PUSH_RDX                                          # save file_size onto stack
-    4D89F8          ; COPY_R15_to_R8                                    # arg3 = executable
-    4889E2          ; COPY_RSP_to_RDX                                   # arg2 = &file_size
-    4889F9          ; COPY_RDI_to_RCX                                   # arg1 = fcmd
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    FF51 20         ; CALL_RCX_Immediate8 !32                           # fcmd->read(fcmd, &file_size, executable)
-    58              ; POP_RAX                                           # deallocate stack
-    58              ; POP_RAX                                           # deallocate stack
-    58              ; POP_RAX                                           # deallocate stack
+    52              ; push_rdx                         # save file_size onto stack
+    4D89F8          ; mov_r8,r15                       # arg3 = executable
+    4889E2          ; mov_rdx,rsp                      # arg2 = &file_size
+    4889F9          ; mov_rcx,rdi                      # arg1 = fcmd
+    50              ; push_rax                         # allocate shadow stack space for UEFI
+    50              ; push_rax                         # allocate shadow stack space for UEFI
+    50              ; push_rax                         # allocate shadow stack space for UEFI
+    FF51 20         ; call_[rcx+BYTE] !32              # fcmd->read(fcmd, &file_size, executable)
+    58              ; pop_rax                          # deallocate stack
+    58              ; pop_rax                          # deallocate stack
+    58              ; pop_rax                          # deallocate stack
 
     # Close fcmd
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    4889F9          ; COPY_RDI_to_RCX                                   # arg1 = fcmd
-    FF51 10         ; CALL_RCX_Immediate8 !16                           # fcmd->close(fcmd)
-    58              ; POP_RAX                                           # deallocate stack
+    50              ; push_rax                         # allocate shadow stack space for UEFI
+    4889F9          ; mov_rcx,rdi                      # arg1 = fcmd
+    FF51 10         ; call_[rcx+BYTE] !16              # fcmd->close(fcmd)
+    58              ; pop_rax                          # deallocate stack
 
-    5F              ; POP_RDI                                           # restore file_size
+    5F              ; pop_rdi                          # restore file_size
 
     # Allocate memory for device_path struct
-    52              ; PUSH_RDX                                          # allocate stack for device_path
-    4989E0          ; COPY_RSP_to_R8                                    # arg3 = &device_path
-    6A 1C           ; PUSH !28                                          # 4 + sizeof(struct efi_device_path_protocol)
-    5A              ; POP_RDX                                           # arg2 = 28
-    6A 02           ; PUSH !2
-    59              ; POP_RCX                                           # arg1 = EFI_LOADER_DATA
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    41FF56 40       ; CALL_R14_Immediate8 !64                           # system->boot->allocate_pool(EFI_LOADER_DATA, 28, &device_path)
-    58              ; POP_RAX                                           # deallocate stack
-    58              ; POP_RAX                                           # deallocate stack
-    58              ; POP_RAX                                           # deallocate stack
-    4158            ; POP_R8                                            # get device_path
+    6A 1C           ; push !28                         # 4 + sizeof(struct efi_device_path_protocol)
+    5A              ; pop_rdx                          # arg2 = 28
+    E8 7D010000     ; call %allocate_pool              # allocate memory
+    4989C0          ; mov_r8,rax                       # get device_path
 
     # Initialize struct
-    4C89C0          ; COPY_R8_to_RAX                                    # Make a pointer to device_path members
-    C600 01         ; STOREI8_into_Address_RAX !1                       # device_path->type = HARDWARE_DEVICE_PATH
-    48FFC0          ; INC_RAX                                           # next member
-    C600 03         ; STOREI8_into_Address_RAX !3                       # device_path->subtype = MEMORY_MAPPED
-    48FFC0          ; INC_RAX                                           # next member
-    66C700 1800     ; STOREI16_into_Address_RAX @24                     # device_path->length = 24
-    4883C0 02       ; ADDI8_RAX !2                                      # next member
-    C700 01000000   ; STOREI32_into_Address_RAX %1                      # device_path->memory_type = EFI_LOADER_CODE
-    4883C0 04       ; ADDI8_RAX !4                                      # next member
-    4C8938          ; STORE64_R15_into_Address_RAX                      # device_path->start_address = executable
-    4883C0 08       ; ADDI8_RAX !8                                      # next member
-    4901FF          ; ADD_RDI_to_R15                                    # end_address = executable + file_size
-    4C8938          ; STORE64_R15_into_Address_RAX                      # device_path->end_address = end_address
-    4929FF          ; SUB_RDI_from_R15                                  # restore r15 = executable
-    4883C0 08       ; ADDI8_RAX !8                                      # next member
-    C600 7F         ; STOREI8_into_Address_RAX !0x7f                    # device_path[1].type = END_HARDWARE_DEVICE_PATH
-    48FFC0          ; INC_RAX                                           # next member
-    C600 FF         ; STOREI8_into_Address_RAX !0xff                    # device_path[1].subtype = END_ENTIRE_DEVICE_PATH
-    48FFC0          ; INC_RAX                                           # next member
-    66C700 0400     ; STOREI16_into_Address_RAX @4                      # device_path[1].length = 4
+    C600 01         ; mov_[rax],BYTE !1                # device_path->type = HARDWARE_DEVICE_PATH
+    48FFC0          ; inc_rax                          # next member
+    C600 03         ; mov_[rax],BYTE !3                # device_path->subtype = MEMORY_MAPPED
+    48FFC0          ; inc_rax                          # next member
+    66C700 1800     ; mov_[rax],WORD @24               # device_path->length = 24
+    4883C0 02       ; add_rax, !2                      # next member
+    C700 01000000   ; mov_[rax], %1                    # device_path->memory_type = EFI_LOADER_CODE
+    4883C0 04       ; add_rax, !4                      # next member
+    4C8938          ; mov_[rax],r15                    # device_path->start_address = executable
+    4883C0 08       ; add_rax, !8                      # next member
+    4901FF          ; add_r15,rdi                      # end_address = executable + file_size
+    4C8938          ; mov_[rax],r15                    # device_path->end_address = end_address
+    4929FF          ; sub_r15,rdi                      # restore r15 = executable
+    4883C0 08       ; add_rax, !8                      # next member
+    C600 7F         ; mov_[rax],BYTE !0x7f             # device_path[1].type = END_HARDWARE_DEVICE_PATH
+    48FFC0          ; inc_rax                          # next member
+    C600 FF         ; mov_[rax],BYTE !0xff             # device_path[1].subtype = END_ENTIRE_DEVICE_PATH
+    48FFC0          ; inc_rax                          # next member
+    66C700 0400     ; mov_[rax],WORD @4                # device_path[1].length = 4
 
     # Load image
-    4150            ; PUSH_R8                                           # save device_path
-    50              ; PUSH_RAX                                          # allocate stack for child_ih
-    54              ; PUSH_RSP                                          # arg6 = &child_ih
-    57              ; PUSH_RDI                                          # arg5 = file size
-    4D89F9          ; COPY_R15_to_R9                                    # arg4 = executable
-                                                                        # arg3 = device_path
-    488B15 44010000 ; LOAD64_into_RDX_rel32 %image_handle               # arg2 = image_handle
-    31C9            ; XOR_ECX_ECX                                       # arg1 = 0
-    4883EC 20       ; SUBI8_RSP !32                                     # allocate shadow stack space for UEFI function
-    41FF96 C8000000 ; CALL_R14_Immediate32 %200                         # system->boot->load_image()
-    4883C4 30       ; ADDI8_RSP !48                                     # deallocate stack
-    5F              ; POP_RDI                                           # save child_ih
+    4150            ; push_r8                          # save device_path
+    50              ; push_rax                         # allocate stack for child_ih
+    54              ; push_rsp                         # arg6 = &child_ih
+    57              ; push_rdi                         # arg5 = file size
+    4D89F9          ; mov_r9,r15                       # arg4 = executable
+                                                       # arg3 = device_path
+    488B15 B2010000 ; mov_rdx,[rip+DWORD] %image_handle # arg2 = image_handle
+    31C9            ; xor_ecx,ecx                      # arg1 = 0
+    4883EC 20       ; sub_rsp, !32                     # allocate shadow stack space for UEFI function
+    41FF96 C8000000 ; call_[r14+DWORD] %200            # system->boot->load_image()
+    4883C4 30       ; add_rsp, !48                     # deallocate stack
+    5F              ; pop_rdi                          # save child_ih
 
     # Free device_path pool
-    59              ; POP_RCX                                           # arg1 = device_path
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    41FF56 48       ; CALL_R14_Immediate8 !72                           # system->boot->free_pool(device_path)
-    58              ; POP_RAX                                           # deallocate stack
+    59              ; pop_rcx                          # arg1 = device_path
+    50              ; push_rax                         # allocate shadow stack space for UEFI function
+    41FF56 48       ; call_[r14+BYTE] !72              # system->boot->free_pool(device_path)
+    58              ; pop_rax                          # deallocate stack
 
     # Free executable pool
-    4C89F9          ; COPY_R15_to_RCX                                   # arg1 = executable
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    41FF56 48       ; CALL_R14_Immediate8 !72                           # system->boot->free_pool(executable)
-    58              ; POP_RAX                                           # deallocate stack
+    4C89F9          ; mov_rcx,r15                      # arg1 = executable
+    50              ; push_rax                         # allocate shadow stack space for UEFI function
+    41FF56 48       ; call_[r14+BYTE] !72              # system->boot->free_pool(executable)
+    58              ; pop_rax                          # deallocate stack
 
-    # Open Child Image
-    50              ; PUSH_RAX                                          # allocate stack for child_image
-    4989E0          ; COPY_RSP_to_R8                                    # arg3 = &child_image
-    488B15 B1000000 ; LOAD64_rel_RDX %LOADED_IMAGE_PROTOCOL_8           # EFI_LOADED_IMAGE_PROTOCOL_GUID (last 64 bits)
-    52              ; PUSH_RDX                                          # push last 64 bits onto stack
-    488B15 A1000000 ; LOAD64_rel_RDX %LOADED_IMAGE_PROTOCOL             # EFI_LOADED_IMAGE_PROTOCOL_GUID (first 64 bits)
-    52              ; PUSH_RDX                                          # push first 64 bits onto
-    4889E2          ; COPY_RSP_to_RDX                                   # arg2 = &guid
-    6A 01           ; PUSH !1                                           # arg6 = EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
-    6A 00           ; PUSH !0                                           # arg5 = NULL
-    4989F9          ; COPY_RDI_to_R9                                    # arg4 = child_ih
-    4889F9          ; COPY_RDI_to_RCX                                   # arg1 = child_ih
-    4883EC 20       ; SUBI8_RSP !32                                     # allocate shadow stack space for UEFI function
-    41FF96 18010000 ; CALL_R14_Immediate32 %280                         # system->boot->open_protocol(child_ih, &guid, &child_image, child_ih, 0, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL)
-    4883C4 40       ; ADDI8_RSP !64                                     # deallocate stack
-    58              ; POP_RAX                                           # get child_image
+    # Open Child Image [_start+0x260]
+    4989F9          ; mov_r9,rdi                       # arg4 = child_ih
+    488D15 10010000 ; lea_rdx,[rip+DWORD] %LOADED_IMAGE_PROTOCOL # guid = &LOADED_IMAGE_PROTOCOL
+    52              ; push_rdx                         # save &LOADED_IMAGE_PROTOCOL
+    4C89C9          ; mov_rcx,r9                       # arg1 = child_ih
+    E8 C6000000     ; call %open_protocol              # open protocol
 
-    488958 38       ; STORE64_from_RBX_into_Address_RAX_Immediate8 !56  # child_image->load_options = command
-    488970 30       ; STORE64_from_RSI_into_Address_RAX_Immediate8 !48  # set child_image->load_options_size
-    488B0D EA000000 ; LOAD64_rel_RCX %image                             # get image
-    488B49 18       ; LOAD64_into_RCX_from_Address_RCX_Immediate8 !24   # image->device
-    488948 18       ; STORE64_from_RCX_into_Address_RCX_Immediate8 !24  # child_image->device = image->device
+    488958 38       ; mov_[rax+BYTE],rbx !56           # child_image->load_options = command
+    488970 30       ; mov_[rax+BYTE],rsi !48           # set child_image->load_options_size
+    488B0D 76010000 ; mov_rcx,[rip+DWORD] %image       # get image
+    488B49 18       ; mov_rcx,[rcx+BYTE] !24           # image->device
+    488948 18       ; mov_[rax+BYTE],rcx !24           # child_image->device = image->device
+
+    4989F8          ; mov_r8,rdi                       # arg3 = image_handle
+    5A              ; pop_rdx                          # arg2 = &LOADED_IMAGE_PROTOCOL
+    4C89C1          ; mov_rcx,r8                       # arg1 = image_handle
+    E8 BC000000     ; call %close_protocol             # close protocol
 
     # Run command
-    4D31C0          ; XOR_R8_R8                                         # arg3 = 0 (ExitData)
-    31D2            ; XOR_EDX_EDX                                       # arg2 = 0 (ExitData size)
-    4889F9          ; COPY_RDI_to_RCX                                   # arg1 = child_ih
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    41FF96 D0000000 ; CALL_R14_Immediate32 %208                         # system->boot->start_image()
-    59              ; POP_RCX                                           # deallocate stack
-    59              ; POP_RCX                                           # deallocate stack
-    59              ; POP_RCX                                           # deallocate stack
+    4D31C0          ; xor_r8,r8                        # arg3 = 0 (ExitData)
+    31D2            ; xor_edx,edx                      # arg2 = 0 (ExitData size)
+    4889F9          ; mov_rcx,rdi                      # arg1 = child_ih
+    50              ; push_rax                         # allocate shadow stack space for UEFI
+    50              ; push_rax                         # allocate shadow stack space for UEFI
+    50              ; push_rax                         # allocate shadow stack space for UEFI
+    41FF96 D0000000 ; call_[r14+DWORD] %208            # system->boot->start_image()
+    59              ; pop_rcx                          # deallocate stack
+    59              ; pop_rcx                          # deallocate stack
+    59              ; pop_rcx                          # deallocate stack
 
-    85C0            ; TEST_EAX_EAX                                      # check if return code is 0
-    75 05           ; JNE8 !print_error                                 # print error and exit
-    E9 EAFDFFFF     ; JMP32 %next_command                               # process another line from kaem script
+    85C0            ; test_eax,eax                     # check if return code is 0
+    75 05           ; jne8 !print_error                # print error and exit
+    E9 29FEFFFF     ; jmp %next_command                # process another line from kaem script
 
-# :print_error [_start+0x323]
-    50              ; PUSH_RAX                                          # save exit code
-    488D15 8E000000 ; LEA_RDX_rel %subprocess_error                     # get error message
-    E8 16000000     ; CALLI32 %File_Print                               # print it
-    58              ; POP_RAX                                           # restore exit code
+# :print_error [_start+0x2B4]
+    50              ; push_rax                         # save exit code
+    488D15 0E010000 ; lea_rdx,[rip+DWORD] %subprocess_error # get error message
+    E8 4D000000     ; call %File_Print                 # print it
+    58              ; pop_rax                          # restore exit code
 
 # Close script file and exit
-# :terminate [_start+0x331]
+# :terminate [_start+0x2C2]
     # Free pool
-    4889D9          ; COPY_RBX_to_RCX                                   # arg1 = command
-    50              ; PUSH_RAX                                          # save exit code
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    41FF56 48       ; CALL_R14_Immediate8 !72                           # system->boot->free_pool(commmand)
+    4889D9          ; mov_rcx,rbx                      # arg1 = command
+    50              ; push_rax                         # save exit code
+    50              ; push_rax                         # allocate shadow stack space for UEFI function
+    41FF56 48       ; call_[r14+BYTE] !72              # system->boot->free_pool(commmand)
 
-    4C89E1          ; COPY_R12_to_RCX                                   # arg1 = fin
-    FF51 10         ; CALL_RCX_Immediate8 !16                           # fin->close(fin)
-    58              ; POP_RAX                                           # deallocate stack
-    58              ; POP_RAX                                           # restore exit code
+    4C89E1          ; mov_rcx,r12                      # arg1 = fin
+    FF51 10         ; call_[rcx+BYTE] !16              # fin->close(fin)
+
+    488B0D 28010000 ; mov_rcx,[rip+DWORD] %rootdir     # arg1 = rootdir
+    FF51 10         ; call_[rcx+BYTE] !16              # rootdir->close(rootdir)
+
+    58              ; pop_rax                          # deallocate stack
+    58              ; pop_rax                          # restore exit code
 
 # Exit without closing script file
-# :abort [_start+0x342]
-    4889EC          ; COPY_RBP_to_RSP                                   # restore stack
-    C3              ; RET
+# :terminate_2 [_start+0x2DD]
+    4C8B05 0C010000 ; mov_r8,[rip+DWORD] %image_handle           # arg3 = image_handle
+    4150            ; push_r8                                    # save image_handle
+    488D15 9D000000 ; lea_rdx,[rip+DWORD] %SIMPLE_FS_PROTOCOL    # guid = &SIMPLE_FS_PROTOCOL
+    488B0D 14010000 ; mov_rcx,[rip+DWORD] %root_device           # arg1 = root_device
+    E8 59000000     ; call %close_protocol                       # close protocol
 
-# :File_Print [_start+0x346]
-    488B0D A2000000 ; LOAD64_rel_RCX %system_out                        # get system_out
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    FF51 08         ; CALL_RCX_Immediate8 !8                            # system->out->output_string(system->out, WCHAR*)
-    58              ; POP_RAX                                           # deallocate stack
-    58              ; POP_RAX                                           # deallocate stack
-    C3              ; RET
+    4158            ; pop_r8                                     # arg3 = image_handle
+    488D15 78000000 ; lea_rdx,[rip+DWORD] %LOADED_IMAGE_PROTOCOL # guid = &LOADED_IMAGE_PROTOCOL
+    4C89C1          ; mov_rcx,r8                                 # arg1 = image_handle
+    E8 48000000     ; call %close_protocol                       # close protocol
+
+# :abort [_start+0x30A]
+    4889EC          ; mov_rsp,rbp                      # restore stack
+    C3              ; ret                              # return to UEFI
+
+# :File_Print [_start+0x30E]
+    488B0D FB000000 ; mov_rcx,[rip+DWORD] %system_out  # get system_out
+    50              ; push_rax                         # allocate shadow stack space for UEFI function
+    50              ; push_rax                         # allocate shadow stack space for UEFI function for UEFI function
+    FF51 08         ; call_[rcx+BYTE] !8               # system->out->output_string(system->out, WCHAR*)
+    58              ; pop_rax                          # deallocate stack
+    58              ; pop_rax                          # deallocate stack
+    C3              ; ret
 
 # read_byte function
 # reads a single character
-# :read_byte [_start+0x355]
-    4C89E1          ; COPY_R12_to_RCX                                   # arg1 = fin
-    6A 01           ; PUSH !1                                           # size = 1
-    4889E2          ; COPY_RSP_to_RDX                                   # arg2 = &size
-    56              ; PUSH_RSI                                          # allocate stack
-    4989E0          ; COPY_RSP_to_R8                                    # arg3 = &c
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    50              ; PUSH_RAX                                          # allocate shadow stack space for UEFI function
-    FF51 20         ; CALL_RCX_Immediate8 !32                           # fin->read()
-    58              ; POP_RAX                                           # deallocate stack
-    58              ; POP_RAX                                           # deallocate stack
-    58              ; POP_RAX                                           # deallocate stack
-    58              ; POP_RAX                                           # save c to rax
-    59              ; POP_RCX                                           # save size to rcx
+# :read_byte [_start+0x31D]
+    4C89E1          ; mov_rcx,r12                      # arg1 = fin
+    6A 01           ; push !1                          # size = 1
+    4889E2          ; mov_rdx,rsp                      # arg2 = &size
+    56              ; push_rsi                         # allocate stack
+    4989E0          ; mov_r8,rsp                       # arg3 = &c
+    50              ; push_rax                         # allocate shadow stack space for UEFI function
+    50              ; push_rax                         # allocate shadow stack space for UEFI function
+    50              ; push_rax                         # allocate shadow stack space for UEFI function
+    FF51 20         ; call_[rcx+BYTE] !32              # fin->read()
+    58              ; pop_rax                          # deallocate stack
+    58              ; pop_rax                          # deallocate stack
+    58              ; pop_rax                          # deallocate stack
+    58              ; pop_rax                          # save c to rax
+    59              ; pop_rcx                          # save size to rcx
 
     # If the file ended (0 bytes read) terminate
-    85C9            ; TEST_ECX_ECX                                      # if size = 0
-    74 C1           ; JE8 !terminate                                    # then we are done
+    85C9            ; test_ecx,ecx                     # if size = 0
+    74 8A           ; je8 !terminate                   # then we are done
 
-    C3              ; RET                                               # return
+    C3              ; ret                              # return
+
+# rcx: handle
+# rdx: &guid
+# r9: agent_handle
+# returns interface
+# :open_protocol [_start+0x339]
+    50              ; push_rax                         # allocate stack for interface
+    4989E0          ; mov_r8,rsp                       # arg3 = &interface
+    6A 01           ; push !1                          # arg6 = EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
+    6A 00           ; push !0                          # arg5 = NULL
+    4883EC 20       ; sub_rsp, !32                     # allocate shadow stack space for UEFI function
+    41FF96 18010000 ; call_[r14+DWORD] %280            # system->boot->open_protocol(handle, &guid, &interface, agent_handle, 0, EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL)
+    4883C4 30       ; add_rsp, !48                     # deallocate stack
+    58              ; pop_rax                          # get image
+    C3              ; ret
+
+# rcx: handle
+# rdx: &guid
+# r8: agent_handle
+# :close_protocol  [_start+0x352]
+    4D31C9          ; xor_r9,r9                        # arg4 = NULL
+    4883EC 20       ; sub_rsp, !32                     # allocate shadow stack space for UEFI function
+    41FF96 20010000 ; call_[r14+DWORD] %288            # system->boot->close_protocol(handle, &guid, agent_handle, 0)
+    4883C4 20       ; add_rsp, !32                     # deallocate stack
+    C3              ; ret
+
+# rdx: number of bytes to allocate
+# r14: system->boot
+# returns pointer in rax
+# :allocate_pool  [_start+0x365]
+    52              ; push_rdx                         # allocate stack for pool pointer
+    4989E0          ; mov_r8,rsp                       # arg3 = &pool
+    6A 02           ; push !2
+    59              ; pop_rcx                          # arg1 = EFI_LOADER_DATA
+    4883EC 18       ; sub_rsp, !24                     # allocate shadow stack space for UEFI
+    41FF56 40       ; call_[r14+BYTE] !64              # system->boot->allocate_pool(EFI_LOADER_DATA, 2048, &pool)
+    4883C4 18       ; add_rsp, !24                     # deallocate stack
+    58              ; pop_rax                          # get pool
+    C3              ; ret
 
 
 # Protocol GUIDs
-# :LOADED_IMAGE_PROTOCOL [_start+0x371]
+# :LOADED_IMAGE_PROTOCOL [_start+0x37A]
     A1 31 1B 5B             ; %0x5b1b31a1:SIMPLE_FS_PROTOCOL
     62 95                   ; @0x9562    22 5B 4E 96             ; %0x0964e5b22
     D2 11                   ; @0x11d2    59 64                   ; @0x6459
-# :LOADED_IMAGE_PROTOCOL_8 [_start+0x379]
     8E 3F 00 A0 C9 69 72 3B ; !0x8e !0x3f !0 !0xa0 !0xc9 !0x69 !0x72 !0x3b
 
-# :SIMPLE_FS_PROTOCOL [_start+0x381]
+# :SIMPLE_FS_PROTOCOL [_start+0x38A]
     22 5B 4E 96             ; %0x0964e5b22
     59 64                   ; @0x6459
     D2 11                   ; @0x11d2
-# :SIMPLE_FS_PROTOCOL_8 [_start+0x389]
     8E 39 00 A0 C9 69 72 3B ; !0x8e !0x39 !0 !0xa0 !0xc9 !0x69 !0x72 !0x3b
 
-# :FILE_INFO_PROTOCOL [_start+0x391]
+# :FILE_INFO_PROTOCOL [_start+0x39A]
     92 6E 57 09             ; %0x09576e92
     3F 6D                   ; @0x6d3f
     D2 11                   ; @0x11d2
-# last 64-bits of GUID are identical to SIMPLE_FS_PROTOCOL
+    8E 39 00 A0 C9 69 72 3B ; !0x8e !0x39 !0 !0xa0 !0xc9 !0x69 !0x72 !0x3b
 
-# :default_file [_start+0x399]
+# :default_file [_start+0x3AA]
     6B 00 61 00 65 00 6D 00 2E 00 61 00 6D 00 64 00 36 00 34 00 00 00 ; L"kaem.amd64"
 
-# :prefix [_start+0x3AF]
+# :prefix [_start+0x3C0]
     20 00 2B 00 3E 00 20 00 00 00  ; L" +> "
 
-# :subprocess_error [_start+0x3B9]
+# :subprocess_error [_start+0x3CA]
     53 00 75 00 62 00 70 00 72 00 6F 00 63 00 65 00
     73 00 73 00 20 00 65 00 72 00 72 00 6F 00 72 00
-# :suffix [_start+0x3D9]
+# :suffix [_start+0x3EA]
     0A 00 0D 00 00 00              ; L"Subprocess error\n\r"
 
-# :image_handle [_start+0x3DF]
+# :image_handle [_start+0x3F0]
     00 00 00 00 00 00 00 00
 
-# :image [_start+0x3E7]
+# :image [_start+0x3F8]
     00 00 00 00 00 00 00 00
 
-# :system_out [_start+0x3EF]
+# :rootdir [_start+0x400]
     00 00 00 00 00 00 00 00
 
-# :PE32_end [_start+0x3F7]
+# :root_device [_start+0x408]
+    00 00 00 00 00 00 00 00
+
+# :system_out [_start+0x410]
+    00 00 00 00 00 00 00 00
+
+# :PE32_end [_start+0x418]
