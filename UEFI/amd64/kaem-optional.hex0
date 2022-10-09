@@ -42,7 +42,7 @@ F0 00                           # SizeOfOptionalHeader
 00 00                           # Linker version
 00 00 00 00                     # size of code
 00 00 00 00                     # sizeOfInitializedData
-00 00 00 00                     # SizeOfUninitializedData
+2B 00 00 00                     # SizeOfUninitializedData
 00 10 00 00                     # AddressOfEntryPoint
 00 10 00 00                     # BaseOfCode
 00 00 00 80 01 00 00 00         # ImageBase
@@ -120,9 +120,9 @@ F0 00                           # SizeOfOptionalHeader
 # [0x148]
 # Start of section headers
 00 00 00 00 00 00 00 00                 ; Name of the section (empty) but could set to ".text"
-18 04 00 00                             ; VirtualSize
+19 04 00 00                             ; VirtualSize
 00 10 00 00                             ; VirtualAddress
-18 04 00 00                             ; SizeOfRawData
+EE 03 00 00                             ; SizeOfRawData
 70 01 00 00                             ; PointerToRawData
 00 00 00 00                             ; PointerToRelocations
 00 00 00 00                             ; PointerToLinenumbers
@@ -137,10 +137,10 @@ F0 00                           # SizeOfOptionalHeader
 # efi_main(void *image_handle, struct efi_system_table *system)
 # :_start
     4889E5          ; mov_rbp,rsp                                # save stack pointer
-    48890D E6030000 ; mov_[rip+DWORD],rcx %image_handle          # save image_handle
+    48890D E7030000 ; mov_[rip+DWORD],rcx %image_handle          # save image_handle
     4889CB          ; mov_rbx,rcx                                # save image_handle
     488B42 40       ; mov_rax,[rdx+BYTE] !64                     # system->out
-    488905 F8030000 ; mov_[rip+DWORD],rax %system_out            # save system->out
+    488905 F9030000 ; mov_[rip+DWORD],rax %system_out            # save system->out
     4C8B72 60       ; mov_r14,[rdx+BYTE] !96                     # system->boot
 
     31C9            ; xor_ecx,ecx                                # timeout = 0
@@ -152,22 +152,22 @@ F0 00                           # SizeOfOptionalHeader
 
     # Open Loaded Image protocol
     4989D9          ; mov_r9,rbx                                 # arg4 = image_handle
-    488D15 3F030000 ; lea_rdx,[rip+DWORD] %LOADED_IMAGE_PROTOCOL # guid = &LOADED_IMAGE_PROTOCOL
+    488D15 40030000 ; lea_rdx,[rip+DWORD] %LOADED_IMAGE_PROTOCOL # guid = &LOADED_IMAGE_PROTOCOL
     4889D9          ; mov_rcx,rbx                                # arg1 = image_handle
-    E8 F6020000     ; call %open_protocol                        # open protocol
+    E8 F7020000     ; call %open_protocol                        # open protocol
     4889C7          ; mov_rdi,rax                                # save image
-    488905 AB030000 ; mov_[rip+DWORD],rax %image                 # save image
+    488905 AC030000 ; mov_[rip+DWORD],rax %image                 # save image
 
     # Get root file system
     4989D9          ; mov_r9,rbx                                 # arg4 = image_handle
-    488D15 33030000 ; lea_rdx,[rip+DWORD] %SIMPLE_FS_PROTOCOL    # guid = &SIMPLE_FS_PROTOCOL
+    488D15 34030000 ; lea_rdx,[rip+DWORD] %SIMPLE_FS_PROTOCOL    # guid = &SIMPLE_FS_PROTOCOL
     488B4F 18       ; mov_rcx,[rdi+BYTE] !24                     # arg1 = root_device = image->device
-    48890D A6030000 ; mov_[rip+DWORD],rcx %root_device           # save root_device
-    E8 D2020000     ; call %open_protocol                        # open protocol
+    48890D A7030000 ; mov_[rip+DWORD],rcx %root_device           # save root_device
+    E8 D3020000     ; call %open_protocol                        # open protocol
     4889C1          ; mov_rcx,rax                                # get rootfs
 
     # Get root directory
-    488D15 8F030000 ; lea_rdx,[rip+DWORD] %rootdir     # arg2 = &rootdir
+    488D15 90030000 ; lea_rdx,[rip+DWORD] %rootdir     # arg2 = &rootdir
     50              ; push_rax                         # allocate shadow stack space for UEFI function space for UEFI function
     50              ; push_rax                         # allocate shadow stack space for UEFI function space for UEFI function
     FF51 08         ; call_[rcx+BYTE] !8               # rootfs->open_volume(rootfs, &rootdir)
@@ -196,7 +196,7 @@ F0 00                           # SizeOfOptionalHeader
     4D85C0          ; test_r8,r8                       # Check if argument is specified
     75 07           ; jne8 !arg_done                   # then use it
     # Else use default_file
-    4C8D05 FE020000 ; lea_r8,[rip+DWORD] %default_file # Use "kaem.amd64"
+    4C8D05 FF020000 ; lea_r8,[rip+DWORD] %default_file # Use "kaem.amd64"
 # :arg_done [_start+0xAC]
 
     # Open file for reading
@@ -206,7 +206,7 @@ F0 00                           # SizeOfOptionalHeader
     6A 01           ; push !1                          # prepare to set arg4 to EFI_FILE_MODE_READ
     4159            ; pop_r9                           # arg4 = EFI_FILE_MODE_READ
                                                        # arg3 = in
-    488B0D 43030000 ; mov_rcx,[rip+DWORD] %rootdir     # arg1 = rootdir
+    488B0D 44030000 ; mov_rcx,[rip+DWORD] %rootdir     # arg1 = rootdir
     4883EC 20       ; sub_rsp, !32                     # allocate shadow stack space for UEFI function
     FF51 08         ; call_[rcx+BYTE] !8               # rootdir->open()
     85C0            ; test_eax,eax                     # if status != EFI_SUCCESS
@@ -216,7 +216,7 @@ F0 00                           # SizeOfOptionalHeader
     # Allocate pool for command
     31D2            ; xor_edx,edx                      # zero RDX
     B6 10           ; mov_dh, !0x10                    # arg2 = 4096 = 0x1000
-    E8 8B020000     ; call %allocate_pool              # allocate memory
+    E8 8C020000     ; call %allocate_pool              # allocate memory
     4889C3          ; mov_rbx,rax                      # get command
 
 # :next_command [_start+0xDD]
@@ -263,11 +263,11 @@ F0 00                           # SizeOfOptionalHeader
 
     4883C6 02       ; add_rsi, !2                      # add 2 to get string length with NULL terminator
 
-    488D15 90020000 ; lea_rdx,[rip+DWORD] %prefix      # get prefix " +> "
+    488D15 91020000 ; lea_rdx,[rip+DWORD] %prefix      # get prefix " +> "
     E8 D9010000     ; call %File_Print                 # print it
     4889DA          ; mov_rdx,rbx                      # get command
     E8 D1010000     ; call %File_Print                 # print it
-    488D15 A6020000 ; lea_rdx,[rip+DWORD] %suffix      # get suffix "\n\r"
+    488D15 A7020000 ; lea_rdx,[rip+DWORD] %suffix      # get suffix "\n\r"
     E8 C5010000     ; call %File_Print                 # print it
 
     # Remove command line options
@@ -281,7 +281,7 @@ F0 00                           # SizeOfOptionalHeader
     6A 01           ; push !1                          # prepare to set arg4 to EFI_FILE_MODE_READ
     4159            ; pop_r9                           # arg4 = EFI_FILE_MODE_READ
     4989D8          ; mov_r8,rbx                       # arg3 = command
-    488B0D 9A020000 ; mov_rcx,[rip+DWORD] %rootdir     # arg1 = rootdir
+    488B0D 9B020000 ; mov_rcx,[rip+DWORD] %rootdir     # arg1 = rootdir
     4883EC 20       ; sub_rsp, !32                     # allocate shadow stack space for UEFI function
     FF51 08         ; call_[rcx+BYTE] !8               # rootdir->open()
     85C0            ; test_eax,eax                     # if status != EFI_SUCCESS
@@ -295,7 +295,7 @@ F0 00                           # SizeOfOptionalHeader
     # Allocate pool for file_info
     31D2            ; xor_edx,edx                      # zero RDX
     B6 10           ; mov_dh, !0x10                    # arg2 = 4096 = 0x1000
-    E8 DC010000     ; call %allocate pool              # allocate memory
+    E8 DD010000     ; call %allocate pool              # allocate memory
     4989C1          ; mov_r9,rax                       # get file_info (arg4 for get_info)
 
     # Get file info
@@ -303,7 +303,7 @@ F0 00                           # SizeOfOptionalHeader
     50              ; push_rax                         # allocate stack for file_size
     4989E0          ; mov_r8,rsp                       # arg3 = &file_size
     49C700 00100000 ; mov_[r8], %0x1000                # file_size = 0x1000
-    488D15 FB010000 ; lea_rdx,[rip+DWORD] %FILE_INFO_PROTOCOL # arg2 = &EFI_FILE_INFO_PROTOCOL
+    488D15 FC010000 ; lea_rdx,[rip+DWORD] %FILE_INFO_PROTOCOL # arg2 = &EFI_FILE_INFO_PROTOCOL
     4889F9          ; mov_rcx,rdi                      # arg1 = fcmd
     4883EC 20       ; sub_rsp, !32                     # allocate shadow stack space for UEFI function
     FF51 40         ; call_[rcx+BYTE] !64              # fcmd->get_info(fcmd, &guid, &file_size, file_info)
@@ -320,7 +320,7 @@ F0 00                           # SizeOfOptionalHeader
 
     # Allocate pool for executable [_start+0x1BA]
     52              ; push_rdx                         # save file_size onto stack
-    E8 A5010000     ; call %allocate_pool              # allocate memory
+    E8 A6010000     ; call %allocate_pool              # allocate memory
     4989C7          ; mov_r15,rax                      # get executable
     5A              ; pop_rdx                          # restore file_size
 
@@ -348,7 +348,7 @@ F0 00                           # SizeOfOptionalHeader
     # Allocate memory for device_path struct
     6A 1C           ; push !28                         # 4 + sizeof(struct efi_device_path_protocol)
     5A              ; pop_rdx                          # arg2 = 28
-    E8 7D010000     ; call %allocate_pool              # allocate memory
+    E8 7E010000     ; call %allocate_pool              # allocate memory
     4989C0          ; mov_r8,rax                       # get device_path
 
     # Initialize struct
@@ -379,7 +379,7 @@ F0 00                           # SizeOfOptionalHeader
     57              ; push_rdi                         # arg5 = file size
     4D89F9          ; mov_r9,r15                       # arg4 = executable
                                                        # arg3 = device_path
-    488B15 B2010000 ; mov_rdx,[rip+DWORD] %image_handle # arg2 = image_handle
+    488B15 B3010000 ; mov_rdx,[rip+DWORD] %image_handle # arg2 = image_handle
     31C9            ; xor_ecx,ecx                      # arg1 = 0
     4883EC 20       ; sub_rsp, !32                     # allocate shadow stack space for UEFI function
     41FF96 C8000000 ; call_[r14+DWORD] %200            # system->boot->load_image()
@@ -400,21 +400,21 @@ F0 00                           # SizeOfOptionalHeader
 
     # Open Child Image [_start+0x260]
     4989F9          ; mov_r9,rdi                       # arg4 = child_ih
-    488D15 10010000 ; lea_rdx,[rip+DWORD] %LOADED_IMAGE_PROTOCOL # guid = &LOADED_IMAGE_PROTOCOL
+    488D15 11010000 ; lea_rdx,[rip+DWORD] %LOADED_IMAGE_PROTOCOL # guid = &LOADED_IMAGE_PROTOCOL
     52              ; push_rdx                         # save &LOADED_IMAGE_PROTOCOL
     4C89C9          ; mov_rcx,r9                       # arg1 = child_ih
-    E8 C6000000     ; call %open_protocol              # open protocol
+    E8 C7000000     ; call %open_protocol              # open protocol
 
     488958 38       ; mov_[rax+BYTE],rbx !56           # child_image->load_options = command
     488970 30       ; mov_[rax+BYTE],rsi !48           # set child_image->load_options_size
-    488B0D 76010000 ; mov_rcx,[rip+DWORD] %image       # get image
+    488B0D 77010000 ; mov_rcx,[rip+DWORD] %image       # get image
     488B49 18       ; mov_rcx,[rcx+BYTE] !24           # image->device
     488948 18       ; mov_[rax+BYTE],rcx !24           # child_image->device = image->device
 
     4989F8          ; mov_r8,rdi                       # arg3 = image_handle
     5A              ; pop_rdx                          # arg2 = &LOADED_IMAGE_PROTOCOL
     4C89C1          ; mov_rcx,r8                       # arg1 = image_handle
-    E8 BC000000     ; call %close_protocol             # close protocol
+    E8 BD000000     ; call %close_protocol             # close protocol
 
     # Run command
     4D31C0          ; xor_r8,r8                        # arg3 = 0 (ExitData)
@@ -434,7 +434,7 @@ F0 00                           # SizeOfOptionalHeader
 
 # :print_error [_start+0x2B4]
     50              ; push_rax                         # save exit code
-    488D15 0E010000 ; lea_rdx,[rip+DWORD] %subprocess_error # get error message
+    488D15 0F010000 ; lea_rdx,[rip+DWORD] %subprocess_error # get error message
     E8 4D000000     ; call %File_Print                 # print it
     58              ; pop_rax                          # restore exit code
 
@@ -449,7 +449,7 @@ F0 00                           # SizeOfOptionalHeader
     4C89E1          ; mov_rcx,r12                      # arg1 = fin
     FF51 10         ; call_[rcx+BYTE] !16              # fin->close(fin)
 
-    488B0D 28010000 ; mov_rcx,[rip+DWORD] %rootdir     # arg1 = rootdir
+    488B0D 29010000 ; mov_rcx,[rip+DWORD] %rootdir     # arg1 = rootdir
     FF51 10         ; call_[rcx+BYTE] !16              # rootdir->close(rootdir)
 
     58              ; pop_rax                          # deallocate stack
@@ -457,23 +457,23 @@ F0 00                           # SizeOfOptionalHeader
 
 # Exit without closing script file
 # :terminate_2 [_start+0x2DD]
-    4C8B05 0C010000 ; mov_r8,[rip+DWORD] %image_handle           # arg3 = image_handle
+    4C8B05 0D010000 ; mov_r8,[rip+DWORD] %image_handle           # arg3 = image_handle
     4150            ; push_r8                                    # save image_handle
-    488D15 9D000000 ; lea_rdx,[rip+DWORD] %SIMPLE_FS_PROTOCOL    # guid = &SIMPLE_FS_PROTOCOL
-    488B0D 14010000 ; mov_rcx,[rip+DWORD] %root_device           # arg1 = root_device
-    E8 59000000     ; call %close_protocol                       # close protocol
+    488D15 9E000000 ; lea_rdx,[rip+DWORD] %SIMPLE_FS_PROTOCOL    # guid = &SIMPLE_FS_PROTOCOL
+    488B0D 15010000 ; mov_rcx,[rip+DWORD] %root_device           # arg1 = root_device
+    E8 5A000000     ; call %close_protocol                       # close protocol
 
     4158            ; pop_r8                                     # arg3 = image_handle
-    488D15 78000000 ; lea_rdx,[rip+DWORD] %LOADED_IMAGE_PROTOCOL # guid = &LOADED_IMAGE_PROTOCOL
+    488D15 79000000 ; lea_rdx,[rip+DWORD] %LOADED_IMAGE_PROTOCOL # guid = &LOADED_IMAGE_PROTOCOL
     4C89C1          ; mov_rcx,r8                                 # arg1 = image_handle
-    E8 48000000     ; call %close_protocol                       # close protocol
+    E8 49000000     ; call %close_protocol                       # close protocol
 
 # :abort [_start+0x30A]
     4889EC          ; mov_rsp,rbp                      # restore stack
     C3              ; ret                              # return to UEFI
 
 # :File_Print [_start+0x30E]
-    488B0D FB000000 ; mov_rcx,[rip+DWORD] %system_out  # get system_out
+    488B0D FC000000 ; mov_rcx,[rip+DWORD] %system_out  # get system_out
     50              ; push_rax                         # allocate shadow stack space for UEFI function
     50              ; push_rax                         # allocate shadow stack space for UEFI function for UEFI function
     FF51 08         ; call_[rcx+BYTE] !8               # system->out->output_string(system->out, WCHAR*)
@@ -487,21 +487,21 @@ F0 00                           # SizeOfOptionalHeader
     4C89E1          ; mov_rcx,r12                      # arg1 = fin
     6A 01           ; push !1                          # size = 1
     4889E2          ; mov_rdx,rsp                      # arg2 = &size
-    56              ; push_rsi                         # allocate stack
+    6A 00           ; push !0                          # allocate stack
     4989E0          ; mov_r8,rsp                       # arg3 = &c
     50              ; push_rax                         # allocate shadow stack space for UEFI function
     50              ; push_rax                         # allocate shadow stack space for UEFI function
     50              ; push_rax                         # allocate shadow stack space for UEFI function
     FF51 20         ; call_[rcx+BYTE] !32              # fin->read()
     58              ; pop_rax                          # deallocate stack
-    58              ; pop_rax                          # deallocate stack
+    58              ; pop_rax                           # deallocate stack
     58              ; pop_rax                          # deallocate stack
     58              ; pop_rax                          # save c to rax
     59              ; pop_rcx                          # save size to rcx
 
     # If the file ended (0 bytes read) terminate
     85C9            ; test_ecx,ecx                     # if size = 0
-    74 8A           ; je8 !terminate                   # then we are done
+    74 89           ; je8 !terminate                   # then we are done
 
     C3              ; ret                              # return
 
@@ -509,7 +509,7 @@ F0 00                           # SizeOfOptionalHeader
 # rdx: &guid
 # r9: agent_handle
 # returns interface
-# :open_protocol [_start+0x339]
+# :open_protocol [_start+0x340]
     50              ; push_rax                         # allocate stack for interface
     4989E0          ; mov_r8,rsp                       # arg3 = &interface
     6A 01           ; push !1                          # arg6 = EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
@@ -523,7 +523,7 @@ F0 00                           # SizeOfOptionalHeader
 # rcx: handle
 # rdx: &guid
 # r8: agent_handle
-# :close_protocol  [_start+0x352]
+# :close_protocol  [_start+0x353]
     4D31C9          ; xor_r9,r9                        # arg4 = NULL
     4883EC 20       ; sub_rsp, !32                     # allocate shadow stack space for UEFI function
     41FF96 20010000 ; call_[r14+DWORD] %288            # system->boot->close_protocol(handle, &guid, agent_handle, 0)
@@ -533,7 +533,7 @@ F0 00                           # SizeOfOptionalHeader
 # rdx: number of bytes to allocate
 # r14: system->boot
 # returns pointer in rax
-# :allocate_pool  [_start+0x365]
+# :allocate_pool  [_start+0x366]
     52              ; push_rdx                         # allocate stack for pool pointer
     4989E0          ; mov_r8,rsp                       # arg3 = &pool
     6A 02           ; push !2
@@ -546,49 +546,40 @@ F0 00                           # SizeOfOptionalHeader
 
 
 # Protocol GUIDs
-# :LOADED_IMAGE_PROTOCOL [_start+0x37A]
-    A1 31 1B 5B             ; %0x5b1b31a1:SIMPLE_FS_PROTOCOL
-    62 95                   ; @0x9562    22 5B 4E 96             ; %0x0964e5b22
-    D2 11                   ; @0x11d2    59 64                   ; @0x6459
+# :LOADED_IMAGE_PROTOCOL [_start+0x37B]
+    A1 31 1B 5B             ; %0x5b1b31a1
+    62 95                   ; @0x9562
+    D2 11                   ; @0x11d2
     8E 3F 00 A0 C9 69 72 3B ; !0x8e !0x3f !0 !0xa0 !0xc9 !0x69 !0x72 !0x3b
 
-# :SIMPLE_FS_PROTOCOL [_start+0x38A]
+# :SIMPLE_FS_PROTOCOL [_start+0x38B]
     22 5B 4E 96             ; %0x0964e5b22
     59 64                   ; @0x6459
     D2 11                   ; @0x11d2
     8E 39 00 A0 C9 69 72 3B ; !0x8e !0x39 !0 !0xa0 !0xc9 !0x69 !0x72 !0x3b
 
-# :FILE_INFO_PROTOCOL [_start+0x39A]
+# :FILE_INFO_PROTOCOL [_start+0x39B]
     92 6E 57 09             ; %0x09576e92
     3F 6D                   ; @0x6d3f
     D2 11                   ; @0x11d2
     8E 39 00 A0 C9 69 72 3B ; !0x8e !0x39 !0 !0xa0 !0xc9 !0x69 !0x72 !0x3b
 
-# :default_file [_start+0x3AA]
+# :default_file [_start+0x3AB]
     6B 00 61 00 65 00 6D 00 2E 00 61 00 6D 00 64 00 36 00 34 00 00 00 ; L"kaem.amd64"
 
-# :prefix [_start+0x3C0]
+# :prefix [_start+0x3C1]
     20 00 2B 00 3E 00 20 00 00 00  ; L" +> "
 
-# :subprocess_error [_start+0x3CA]
+# :subprocess_error [_start+0x3CB]
     53 00 75 00 62 00 70 00 72 00 6F 00 63 00 65 00
     73 00 73 00 20 00 65 00 72 00 72 00 6F 00 72 00
-# :suffix [_start+0x3EA]
-    0A 00 0D 00 00 00              ; L"Subprocess error\n\r"
+# :suffix [_start+0x3EB]
+    0A 00 0D              ; L"Subprocess error\n\r"
 
-# :image_handle [_start+0x3F0]
-    00 00 00 00 00 00 00 00
-
-# :image [_start+0x3F8]
-    00 00 00 00 00 00 00 00
-
-# :rootdir [_start+0x400]
-    00 00 00 00 00 00 00 00
-
-# :root_device [_start+0x408]
-    00 00 00 00 00 00 00 00
-
-# :system_out [_start+0x410]
-    00 00 00 00 00 00 00 00
-
-# :PE32_end [_start+0x418]
+# :PE32_end [_start+0x3EE]
+# :image_handle [_start+0x3F1]
+# :image [_start+0x3F9]
+# :rootdir [_start+0x401]
+# :root_device [_start+0x409]
+# :system_out [_start+0x411]
+# :VirtualSizeEnd [_start+0x419]
