@@ -44,8 +44,8 @@ F0 00                           # SizeOfOptionalHeader
 00 00 00 00                     # sizeOfInitializedData
 2B 00 00 00                     # SizeOfUninitializedData
 00 10 00 00                     # AddressOfEntryPoint
-00 10 00 00                     # BaseOfCode
-00 00 00 80 01 00 00 00         # ImageBase
+00 00 00 00                     # BaseOfCode
+00 00 00 00 00 00 00 00         # ImageBase
 01 00 00 00                     # SectionAlignment
 01 00 00 00                     # FileAlignment
 00 00 00 00                     # OperatingSystemVersion
@@ -576,7 +576,7 @@ EE 03 00 00                             ; SizeOfRawData
 # :suffix [_start+0x3EB]
     0A 00 0D              ; L"Subprocess error\n\r"
 
-# :PE32_end [_start+0x3EE]
+# :ELF_end [_start+0x3EE]
 # :image_handle [_start+0x3F1]
 # :image [_start+0x3F9]
 # :rootdir [_start+0x401]

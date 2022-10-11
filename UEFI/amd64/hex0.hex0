@@ -52,8 +52,8 @@ F0 00                           # SizeOfOptionalHeader
 00 00 00 00                     # sizeOfInitializedData
 00 00 00 00                     # SizeOfUninitializedData
 00 10 00 00                     # AddressOfEntryPoint
-00 10 00 00                     # BaseOfCode
-00 00 00 80 01 00 00 00         # ImageBase
+00 00 00 00                     # BaseOfCode
+00 00 00 00 00 00 00 00         # ImageBase
 01 00 00 00                     # SectionAlignment
 01 00 00 00                     # FileAlignment
 00 00 00 00                     # OperatingSystemVersion
@@ -128,9 +128,9 @@ F0 00                           # SizeOfOptionalHeader
 # [0x148]
 # Start of section headers
 00 00 00 00 00 00 00 00                 ; Name of the section (empty) but could set to ".text"
-D1 01 00 00                             ; VirtualSize
+D0 01 00 00                             ; VirtualSize
 00 10 00 00                             ; VirtualAddress
-D1 01 00 00                             ; SizeOfRawData
+D0 01 00 00                             ; SizeOfRawData
 70 01 00 00                             ; PointerToRawData
 00 00 00 00                             ; PointerToRelocations
 00 00 00 00                             ; PointerToLinenumbers
@@ -148,7 +148,7 @@ D1 01 00 00                             ; SizeOfRawData
 
     # Open Loaded Image protocol
     4D89F9          ; mov_r9,r15                                   # arg4 = image_handle
-    488D15 9D010000 ; lea_rdx,[rip+DWORD] %LOADED_IMAGE_PROTOCOL   # guid = &LOADED_IMAGE_PROTOCOL
+    488D15 9C010000 ; lea_rdx,[rip+DWORD] %LOADED_IMAGE_PROTOCOL   # guid = &LOADED_IMAGE_PROTOCOL
     4C89C9          ; mov_rcx,r9                                   # arg1 = image_handle
     50              ; push_rax                                     # allocate stack for image
     4989E0          ; mov_r8,rsp                                   # arg3 = &image
@@ -161,7 +161,7 @@ D1 01 00 00                             ; SizeOfRawData
 
     # Get root file system
     4D89F9          ; mov_r9,r15                                   # arg4 = image_handle
-    488D15 88010000 ; lea_rdx,[rip+DWORD] %SIMPLE_FS_PROTOCOL      # guid = &SIMPLE_FS_PROTOCOL
+    488D15 87010000 ; lea_rdx,[rip+DWORD] %SIMPLE_FS_PROTOCOL      # guid = &SIMPLE_FS_PROTOCOL
     488B4F 18       ; mov_rcx,[rdi+BYTE] !24                       # arg1 = root_device = image->device
     4989CD          ; mov_r13,rcx                                  # save root_device
     50              ; push_rax                                     # allocate stack for rootfs
@@ -354,8 +354,7 @@ D1 01 00 00                             ; SizeOfRawData
     4C89E1          ; mov_rcx,r12                 # arg1 = fin
     6A 01           ; push !1                     # size = 1
     4889E2          ; mov_rdx,rsp                 # arg2 = &size
-    31F6            ; xor_esi,esi                 # zero rsi
-    56              ; push_rsi                    # allocate stack
+    6A 00           ; push_rsi                    # allocate stack
     4989E0          ; mov_r8,rsp                  # arg3 = &input
     50              ; push_rax                    # allocate shadow stack space for UEFI function
     50              ; push_rax                    # allocate shadow stack space for UEFI function
@@ -373,7 +372,7 @@ D1 01 00 00                             ; SizeOfRawData
 
     C3              ; ret                         # return
 
-# :terminate [_start+0x161]
+# :terminate [_start+0x160]
     58              ; pop_rax                     # remove last return address from stack
     5E              ; pop_rsi                     # restore rootdir
     415F            ; pop_r15                     # restore image_handle
@@ -406,16 +405,16 @@ D1 01 00 00                             ; SizeOfRawData
 
 
 # Protocol GUIDs
-# :LOADED_IMAGE_PROTOCOL [_start+0x1B1]
+# :LOADED_IMAGE_PROTOCOL [_start+0x1B0]
     A1 31 1B 5B             ; %0x5b1b31a1
     62 95                   ; @0x9562
     D2 11                   ; @0x11d2
     8E 3F 00 A0 C9 69 72 3B ; !0x8e !0x3f !0 !0xa0 !0xc9 !0x69 !0x72 !0x3b
 
-# :SIMPLE_FS_PROTOCOL [_start+0x1C1]
+# :SIMPLE_FS_PROTOCOL [_start+0x1C0]
     22 5B 4E 96             ; %0x0964e5b22
     59 64                   ; @0x6459
     D2 11                   ; @0x11d2
     8E 39 00 A0 C9 69 72 3B ; !0x8e !0x39 !0 !0xa0 !0xc9 !0x69 !0x72 !0x3b
 
-# :PE32_end [_start+0x1D1]
+# :ELF_end [_start+0x1D0]
