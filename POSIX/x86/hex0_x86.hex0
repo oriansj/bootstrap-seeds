@@ -109,7 +109,7 @@
 	01F8                        ; add_eax,edi
 
 	# flip the toggle
-	4D                          ; DEC_EBP                     # ebp = -1
+	4D                          ; dec_ebp                     # ebp = -1
 
 	E8 39000000                 ; call %write_byte
 
