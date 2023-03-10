@@ -44,7 +44,7 @@ int in_set(int c, char* s)
 void line_Comment(FILE* source_file)
 {
 	int c = fgetc(source_file);
-	while(!in_set(c, "\n\r"))
+	while(!in_set(c, "\n"))
 	{
 		if(EOF == c) break;
 		c = fgetc(source_file);
@@ -95,7 +95,7 @@ int main(int argc, char **argv)
 	FILE* input;
 
 	/* if no input supplied, pull from /dev/stdin */
-	if(NULL == argv[1]) input = fopen("/dev/stdin", "r");
+	if(NULL == argv[1]) input = stdin;
 	else input = fopen(argv[1], "r");
 
 	/* default output to stdout */
