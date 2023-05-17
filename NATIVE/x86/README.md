@@ -22,7 +22,7 @@ qemu-system-i386 -nographic -drive file=stage0_monitor.img,format=raw
 
 # builder-hex0-x86-stage1
 
-The builder-hex0-x86-stage1 tool is a tiny (200 byte) bootable program which contains a hex0 compiler which loads and compiles source from disk(starting at sector 2), places it into memory starting at address 0x7E00 and jumps to the resulting executable. Note that the stage1 code is only 200 bytes but it must be padded to 512 bytes with the Master Boot Record identifier bytes (0x55 0xAA) placed at the end to form a proper boot sector.
+The builder-hex0-x86-stage1 tool is a tiny (200 byte) bootable program which contains a hex0 compiler which loads and compiles source from disk(starting at sector 2), places it into memory starting at address 0x7E00 and jumps to the resulting executable. Note that the stage1 image is only 200 bytes of code but has been padded to 512 bytes with the Master Boot Record identifier bytes (0x55 0xAA) placed at the end to form a proper boot sector.
 
 Like stage0\_monitor, builder-hex0-x86-stage1 is not particularly useful by itself but is enough to be combined with more source code to form a bootstrapping path to much more functionality.
 
@@ -56,7 +56,7 @@ cp $SEED_DIR/hex0_x86.hex0 .
 ../hex0-to-src.sh ./hex0_x86.hex0 >> hex0.src
 
 # Create disk image from seed and source, boot it, and extract result from resulting disk image
-../build-stages.sh builder-hex0-x86-stage1.bin ../builder-hex0-x86-stage2.hex0 hex0.src hex0-seed
+../build-stages.sh builder-hex0-x86-stage1.img ../builder-hex0-x86-stage2.hex0 hex0.src hex0-seed
 
 # Verify the pre-built hex0-seed is the same as the hex0-seed we built
 diff $SEED_DIR/hex0-seed hex0-seed
