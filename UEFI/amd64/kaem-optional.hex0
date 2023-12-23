@@ -301,7 +301,7 @@ F0 00                           # SizeOfOptionalHeader
     5F              ; pop_rdi                          # get fcmd
 
     # Restore command line arguments
-    6641C707 2000   ; STOREI16_into_Address_R15 @0x20                   # restore command line options by readding ' '
+    6641C707 2000   ; STOREI16_into_Address_R15 @0x20  # restore command line options by readding ' '
 
     # Allocate pool for file_info
     31D2            ; xor_edx,edx                      # zero RDX
@@ -510,7 +510,7 @@ F0 00                           # SizeOfOptionalHeader
 
 # :File_Print [_start+0x361]
     488B0D E3000000 ; mov_rcx,[rip+DWORD] %system_out  # get system_out
-    4883EC 28       ; sub_rsp, !40                     # allocate shadow stack space for UEFI
+    4883EC 28       ; sub_rsp, !40                     # allocate shadow stack space for UEFI function
     FF51 08         ; call_[rcx+BYTE] !8               # system->out->output_string(system->out, WCHAR*)
     4883C4 28       ; add_rsp, !40                     # deallocate stack
     C3              ; ret
