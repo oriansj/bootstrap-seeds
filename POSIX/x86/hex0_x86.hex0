@@ -1,5 +1,5 @@
-## Copyright (C) 2019 Jeremiah Orians
-## Copyright (C) 2022 Andrius Štikonas
+# SPDX-FileCopyrightText: 2019 Jeremiah Orians
+# SPDX-FileCopyrightText: 2022 Andrius Štikonas
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -198,7 +198,7 @@
 	52                          ; push_edx                    # protect fout
 	6A 01                       ; push !1                     # prepare to set edx to 1
 	5A                          ; pop_edx                     # set the size of chars we want
-	53                          ; push_ebx                    # allocate stack
+	57                          ; push_edi                    # allocate stack
 	89E1                        ; mov_ecx,esp                 # Where to put it
 	89F3                        ; mov_ebx,esi                 # Where are we reading from
 	6A 03                       ; push !3                     # prepare to set eax to 3

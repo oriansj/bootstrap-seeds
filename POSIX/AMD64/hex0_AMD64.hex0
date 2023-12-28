@@ -191,7 +191,7 @@
 	# Attempt to read 1 byte from STDIN
 	6A 01               ; push !1         # prepare to set rdx to 1
 	5A                  ; pop_rdx         # set the size of chars we want
-	57                  ; push_rdi        # allocate stack
+	55                  ; push_rbp        # allocate stack
 	4889E6              ; mov_rsi,rsp     # Where to put it
 	4C89CF              ; mov_rdi,r9      # Where are we reading from
 	31C0                ; xor_eax,eax     # the syscall number for read
@@ -207,7 +207,7 @@
 #:Done (0x60011D)
 	# program completed Successfully
 	31FF                ; xor_edi,edi     # All is well, rdi = 0
-	6A 3C               ; push !60        # sycall number for exit is 60
+	6A 3C               ; push !60        # syscall number for exit is 60
 	58                  ; pop_rax         # put the exit syscall number in rax
 	0F05                ; syscall         # Call it a good day
 
