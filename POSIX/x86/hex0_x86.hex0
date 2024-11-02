@@ -21,8 +21,8 @@
 03 00                           # e_machine Indicating x86
 01 00 00 00                     # e_version Indicating original elf
 
-54 80 04 08                     # e_entry Address of the entry point
-34 00 00 00                     # e_phoff Address of program header table
+4C 80 04 08                     # e_entry Address of the entry point
+2C 00 00 00                     # e_phoff Address of program header table
 00 00 00 00                     # e_shoff Address of section header table
 
 00 00 00 00                     # e_flags
@@ -30,26 +30,29 @@
 34 00                           # e_ehsize Indicating our 52 Byte header
 
 20 00                           # e_phentsize size of a program header table
+
+# The following 8 bytes are shared by both ELF header and program header.
+## Program Header
+#:ELF_program_headers
+#:ELF_program_header__text
 01 00                           # e_phnum number of entries in program table
 
 00 00                           # e_shentsize size of a section header table
 00 00                           # e_shnum number of entries in section table
 
 00 00                           # e_shstrndx index of the section names
+# End of ELF base header
 
-## Program Header
-#:ELF_program_headers
-#:ELF_program_header__text
-01 00 00 00                     # ph_type: PT-LOAD = 1
-00 00 00 00                     # ph_offset
+# 01 00 00 00                   # ph_type: PT-LOAD = 1
+# 00 00 00 00                   # ph_offset
 
 00 80 04 08                     # ph_vaddr
 00 80 04 08                     # ph_physaddr
 
-BE 00 00 00                     # ph_filesz
-BE 00 00 00                     # ph_memsz
+B6 00 00 00                     # ph_filesz
+B6 00 00 00                     # ph_memsz
 
-07 00 00 00                     # ph_flags: PF-X|PF-W|PF-R = 7
+01 00 00 00                     # ph_flags: PF-X = 1
 01 00 00 00                     # ph_align
 
 #:ELF_text
@@ -57,7 +60,7 @@ BE 00 00 00                     # ph_memsz
 # Where the ELF Header is going to hit
 # Simply jump to _start
 # Our main function
-# :_start ; (0x8048054)
+# :_start ; (0x804804C)
 	58                          ; pop_eax                     # Get the number of arguments
 	5B                          ; pop_ebx                     # Get the program name
 	5B                          ; pop_ebx                     # Get the actual input name
@@ -77,18 +80,18 @@ BE 00 00 00                     # ph_memsz
 	42                          ; inc_edx                     # edx = 1 (count for read/write)
 	97                          ; xchg_eax,edi                # Preserve outfile
 
-#:loop_reset_all ; (0x8048071)
+#:loop_reset_all ; (0x8048069)
 	31ED                        ; xor_ebp,ebp                 # ebp = 0 (no prior hex val)
 
 # Comment tracking is done with esi.
 # esi is decremented if we hit a
 # comment (';' or '#') and reset
 # if we hit a new-line.
-#:loop_reset_comment ; (0x8048073)
+#:loop_reset_comment ; (0x804806B)
 	89D6                        ; mov_esi,edx                 # Set no current comment
-#:loop_add_comment ; (0x8048075)
+#:loop_add_comment ; (0x804806D)
 	4E                          ; dec_esi
-#:loop ; (0x8048076)
+#:loop ; (0x804806E)
 
 	# Read a byte
 	5B                          ; pop_ebx                     # Get infile
@@ -106,7 +109,7 @@ BE 00 00 00                     # ph_memsz
 	31DB                        ; xor_ebx,ebx                 # Set return success (ebx = 0)
 	CD80                        ; int !0x80                   # Exit
 
-#:cont ; (0x8048088)
+#:cont ; (0x8048080)
 	8A01                        ; mov_al,[ecx]                # Move prog byte in eax
 
 	# New line check
@@ -134,7 +137,7 @@ BE 00 00 00                     # ph_memsz
 	3C07                        ; cmp_al, !7                  # Check for value 'A'-'F'
 	73 CE                       ; jae !loop                   # We don't have hex value ignore it
 
-#:write ; (0x80480a8)
+#:write ; (0x80480A8)
 	C1E504                      ; shl_ebp, !4                 # Shift up existing hex digit
 	040A                        ; add_al, !10                 # Finish converting ascii to raw value
 	01C5                        ; add_ebp,eax                 # Combine the hex digits
@@ -150,4 +153,4 @@ BE 00 00 00                     # ph_memsz
 	58                          ; pop_eax                     # Set write syscall in eax
 	CD80                        ; int !0x80                   # Do the write
 	EB B3                       ; jmp !loop_reset_all         # Start a fresh byte
-#:ELF_end ; (0x80480be)
+#:ELF_end ; (0x80480B6)
