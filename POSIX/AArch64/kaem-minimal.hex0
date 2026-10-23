@@ -209,7 +209,7 @@ C2 05 00 00 00 00 00 00             # ph_memsz
 # And aborts hard
 # DOES NOT RETURN
 #:Exit_Failure
-    210080d2                    ; SET_X1_TO_1                 # All is wrong
+    200080d2                    ; SET_X0_TO_1                 # All is wrong
     a80b80d2                    ; SET_X8_TO_SYS_EXIT          # put the exit syscall number in x8
     010000d4                    ; SYSCALL                     # Call it a bad day
 
