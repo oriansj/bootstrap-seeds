@@ -64,8 +64,8 @@ F3 00              ## e_machine Indicating RISC-V
 00 00 60 00 00 00 00 00 ## p_vaddr
 00 00 60 00 00 00 00 00 ## p_physaddr
 
-68 01 00 00 00 00 00 00 ## p_filesz
-68 01 00 00 00 00 00 00 ## p_memsz
+64 01 00 00 00 00 00 00 ## p_filesz
+64 01 00 00 00 00 00 00 ## p_memsz
 
 01 00 00 00 00 00 00 00 ## Required alignment
 
@@ -104,8 +104,8 @@ F3 00              ## e_machine Indicating RISC-V
     73 00 00 00    # ecall
 
     ; If the file ended (0 bytes read) terminate
-    63 00 05 0A    # rs1_a0 @terminate beqz
-                   # +160B
+    63 0E 05 08    # rs1_a0 @terminate beqz
+                   # +156B
 
     ; Check if it's a comment
     03 05 01 00    # rd_a0 rs1_sp lb
@@ -122,8 +122,8 @@ F3 00              ## e_machine Indicating RISC-V
         73 00 00 00    # ecall             ; sys_read
 
         ; If the file ended (0 bytes read) terminate
-        63 0E 05 06    # rs1_a0 @terminate beqz
-                       # +124B
+        63 0C 05 06    # rs1_a0 @terminate beqz
+                       # +120B
         ; Check if read byte is the end of the comment (i.e. a newline character),
         ; in that case we continue processing
         03 05 01 00     # rd_a0 rs1_sp lb
@@ -135,21 +135,17 @@ F3 00              ## e_machine Indicating RISC-V
                         # -76B
     6F F0 1F FE    # $loop jal
 # :not_comment ; (0x0600100)
-    ; Check if it's a hex character:
-    ; in the case it's not, ignores and reads next byte
-    03 05 01 00    # rd_a0 rs1_sp lb
-
     93 02 05 FD    # rd_t0 rs1_a0 !-48 addi   ; Subtract ASCII '0'
     13 03 A0 00    # rd_t1 !10 addi
     63 EC 62 00    # rs1_t0 rs2_t1 @digit bltu ; Unsigned range 0 through 9
     93 62 05 02    # rd_t0 rs1_a0 !32 ori     ; Fold upper case to lower case
     93 82 F2 F9    # rd_t0 rs1_t0 !-97 addi
     13 03 60 00    # rd_t1 !6 addi
-    E3 F8 62 F8    # rs1_t0 rs2_t1 @next_byte bgeu ; Not hex, continue reading
+    E3 FA 62 F8    # rs1_t0 rs2_t1 @next_byte bgeu ; Not hex, continue reading
     93 82 A2 00    # rd_t0 rs1_t0 !10 addi
-# :digit ; (0x0600124)
+# :digit ; (0x0600120)
     13 85 02 00    # rd_a0 rs1_t0 mv
-# :hex_read ; (0x0600128)
+# :hex_read ; (0x0600124)
     ; END check hex -- leaves the half byte in a0
 
     63 18 0A 00    # rs1_s4 @combine bnez     ; if toggle != 0 -> combine
@@ -158,10 +154,10 @@ F3 00              ## e_machine Indicating RISC-V
     93 0A 05 00    # rd_s5 rs1_a0 mv          ; Load hold
 
     13 0A 10 00    # rd_s4 !1 addi            ; Set toggle
-    6F F0 9F F7    # $next_byte jal           ; Read next byte
-                   # -136B
+    6F F0 DF F7    # $next_byte jal           ; Read next byte
+                   # -132B
 
-# :combine ; (0x0600138)
+# :combine ; (0x0600134)
     ; Combine half bytes
     93 95 4A 00    # rd_a1 rs1_s5 rs2_x4 slli ; Shift logical left 4 times
     33 05 B5 00    # rd_a0 rs1_a0 rs2_a1 add  ; Combine two half bytes
@@ -179,13 +175,13 @@ F3 00              ## e_machine Indicating RISC-V
     93 0A 00 00    # rd_s5 mv                 ; Clear hold
 
     ; Read next byte
-    6F F0 1F F5    # $next_byte jal
-                   # -176B
+    6F F0 5F F5    # $next_byte jal
+                   # -172B
 
-# :terminate  ; (0x600160)
+# :terminate  ; (0x60015C)
     ; Terminate program with 0 return code
     93 08 D0 05    # rd_a7 !93 addi           ; sys_exit
     73 00 00 00    # ecall
 # PROGRAM END
 
-# :ELF_end ; (0x600168)
+# :ELF_end ; (0x600164)
