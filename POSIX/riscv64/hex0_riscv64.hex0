@@ -64,8 +64,8 @@ F3 00              ## e_machine Indicating RISC-V
 00 00 60 00 00 00 00 00 ## p_vaddr
 00 00 60 00 00 00 00 00 ## p_physaddr
 
-60 01 00 00 00 00 00 00 ## p_filesz
-60 01 00 00 00 00 00 00 ## p_memsz
+5C 01 00 00 00 00 00 00 ## p_filesz
+5C 01 00 00 00 00 00 00 ## p_memsz
 
 01 00 00 00 00 00 00 00 ## Required alignment
 
@@ -104,8 +104,8 @@ F3 00              ## e_machine Indicating RISC-V
     73 00 00 00    # ecall
 
     ; If the file ended (0 bytes read) terminate
-    63 0C 05 08    # rs1_a0 @terminate beqz
-                   # +152B
+    63 0A 05 08    # rs1_a0 @terminate beqz
+                   # +148B
 
     ; Check if it's a comment
     03 05 01 00    # rd_a0 rs1_sp lb
@@ -119,8 +119,8 @@ F3 00              ## e_machine Indicating RISC-V
         73 00 00 00    # ecall             ; sys_read
 
         ; If the file ended (0 bytes read) terminate
-        63 0C 05 06    # rs1_a0 @terminate beqz
-                       # +120B
+        63 0A 05 06    # rs1_a0 @terminate beqz
+                       # +116B
         ; Check if read byte is the end of the comment (i.e. a newline character),
         ; in that case we continue processing
         03 05 01 00     # rd_a0 rs1_sp lb
@@ -169,16 +169,15 @@ F3 00              ## e_machine Indicating RISC-V
 
     ; Update globals
     13 0A 00 00    # rd_s4 mv                 ; Clear toggle
-    93 0A 00 00    # rd_s5 mv                 ; Clear hold
 
     ; Read next byte
-    6F F0 9F F5    # $next_byte jal
-                   # -168B
+    6F F0 DF F5    # $next_byte jal
+                   # -164B
 
-# :terminate  ; (0x600158)
+# :terminate  ; (0x600154)
     ; Terminate program with 0 return code
     93 08 D0 05    # rd_a7 !93 addi           ; sys_exit
     73 00 00 00    # ecall
 # PROGRAM END
 
-# :ELF_end ; (0x600160)
+# :ELF_end ; (0x60015C)
