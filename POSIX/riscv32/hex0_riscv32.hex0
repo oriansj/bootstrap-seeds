@@ -19,8 +19,7 @@
 ; Register use:
 ; s2: input fd
 ; s3: output fd
-; s4: toggle
-; s5: hold
+; s4: pending high nibble or -1
 
 ; Uses top of the stack as i/o buffer
 
@@ -65,14 +64,13 @@ F3 00              # e_machine Indicating RISC-V
 00 00 60 00        # ph_vaddr
 00 00 60 00        # ph_physaddr
 
-64 01 00 00        # ph_filesz
-64 01 00 00        # ph_memsz
+20 01 00 00        # ph_filesz
+20 01 00 00        # ph_memsz
 
 07 00 00 00        # ph_flags: PF-X|PF-W|PF-R = 7
 01 00 00 00        # ph_align
 
 # :_start ; (0x0600054)
-    13 0A 00 00    # rd_s4 mv                 ; Initialize register
     83 25 81 00    # rd_a1 rs1_sp !8 lw       ; Input file name
 
     ; Open input file and store FD in s2
@@ -98,116 +96,60 @@ F3 00              # e_machine Indicating RISC-V
     73 00 00 00    # ecall
     93 09 05 00    # rd_s3 rs1_a0 mv          ; Save fd in s3 for later
 
-# :next_byte ; (0x0600088)
-    93 08 F0 03    # rd_a7 !63 addi           ; sys_read
-    13 05 09 00    # rd_a0 rs1_s2 mv          ; File descriptor
-    93 05 01 00    # rd_a1 rs1_sp mv          ; Buffer
-    13 06 10 00    # rd_a2 !1 addi            ; Size of what we want to read (set for all subsequent syscalls)
-    73 00 00 00    # ecall
+    93 05 01 00    # rd_a1 rs1_sp mv
+    13 06 10 00    # rd_a2 !1 addi
 
-    ; If the file ended (0 bytes read) terminate
-    63 00 05 0C    # rs1_a0 @terminate beqz
-                   # +192B
+# :pair ; (0x060008C)
+    13 0A F0 FF    # rd_s4 !-1 addi           ; No high nibble yet
 
-    ; Check if it's a comment
-    03 05 01 00    # rd_a0 rs1_sp lb
-    93 02 30 02    # rd_t0 !0x23 addi
-    63 08 55 00    # rs1_a0 rs2_t0 @loop beq  ; a0 eq to '#'
-                   # +16B
-    93 02 B0 03    # rd_t0 !0x3B addi
-    63 04 55 00    # rs1_a0 rs2_t0 @loop beq  ; a0 eq to ';'
-                   # +8B
-    6F 00 80 02    # $not_comment jal
-                   # +40B
-# :loop ; (0x06000B8)
-        13 05 09 00    # rd_a0 rs1_s2 mv   ; File descriptor
-        73 00 00 00    # ecall             ; sys_read
+# :normal ; (0x0600090)
+    EF 03 00 07    # rd_t2 $read jal          ; Save the return address in t2
+    93 02 30 02    # rd_t0 !35 addi           ; Check for '#'
+    63 06 55 00    # rs1_a0 rs2_t0 @comment beq
+    93 02 B0 03    # rd_t0 !59 addi           ; Check for ';'
+    63 1E 55 00    # rs1_a0 rs2_t0 @decode bne
 
-        ; If the file ended (0 bytes read) terminate
-        63 0E 05 08    # rs1_a0 @terminate beqz
-                       # +156B
-        ; Check if read byte is the end of the comment (i.e. a newline character),
-        ; in that case we continue processing
-        03 05 01 00     # rd_a0 rs1_sp lb
-        93 02 A0 00     # rd_t0 !0xA addi
-        E3 0E 55 FA     # rs1_a0 rs2_t0 @next_byte beq ; a0 eq to \n
-                        # -68B
-        93 02 D0 00     # rd_t0 !0xD addi
-        E3 0A 55 FA     # rs1_a0 rs2_t0 @next_byte beq ; a0 eq to \r
-                        # -76B
-    6F F0 1F FE    # $loop jal
-# :not_comment ; (0x06000DC)
-    ; Check if it's a hex character:
-    ; in the case it's not, ignores and reads next byte
-    03 05 01 00    # rd_a0 rs1_sp lb
+# :comment ; (0x06000A4)
+    EF 03 C0 05    # rd_t2 $read jal
+    93 02 A0 00    # rd_t0 !10 addi
+    E3 02 55 FE    # rs1_a0 rs2_t0 @normal beq ; a0 eq to \n
+    93 02 D0 00    # rd_t0 !13 addi
+    E3 18 55 FE    # rs1_a0 rs2_t0 @comment bne ; CR also ends the comment
+    6F F0 9F FD    # $normal jal
 
-    ; Is it between '0' and '9'?
-    93 02 00 03    # rd_t0 !48 addi           ; '0' character
-    63 4A 55 00    # rs1_a0 rs2_t0 @uppercase_alpha blt
-                   # +20B
-    93 02 90 03    # rd_t0 !57 addi           ; '9' character
-    63 C6 A2 00    # rs1_t0 rs2_a0 @uppercase_alpha blt
-                   # +12B
-    13 05 05 FD    # rd_a0 rs1_a0 !-48 addi
-    6F 00 00 03    # $hex_read jal
-                   # +48B
-# :uppercase_alpha ; (0x06000F8)
-    ; Is it between 'A' and 'F'?
-    93 02 10 04    # rd_t0 !65 addi           ; 'A' character
-    63 4A 55 00    # rs1_a0 rs2_t0 @lowercase_alpha blt
-                   # +20B
-    93 02 60 04    # rd_t0 !70 addi           ; 'F' character
-    63 C6 A2 00    # rs1_t0 rs2_a0 @lowercase_alpha blt
-                   # +12B
-    13 05 95 FC    # rd_a0 rs1_a0 !-55 addi
-    6F 00 80 01    # $hex_read jal
-                   # +24B
-# :lowercase_alpha ; (0x0600110)
-    ; Is it between 'a' and 'f'?
-    93 02 10 06    # rd_t0 !97 addi           ; 'a' character
-    E3 4A 55 F6    # rs1_a0 rs2_t0 @next_byte blt ; Not hex, continue reading
-                   # -140B
-    93 02 60 06    # rd_t0 !102 addi          ; 'f' character
-    E3 C6 A2 F6    # rs1_t0 rs2_a0 @next_byte blt ; Not hex, continue reading
-                   # -148B
-    13 05 95 FA    # rd_a0 rs1_a0 !-87 addi
-# :hex_read ; (0x0600124)
-    ; END check hex -- leaves the half byte in a0
+# :decode ; (0x06000BC)
+    93 02 05 FD    # rd_t0 rs1_a0 !-48 addi   ; Subtract ASCII '0'
+    13 B3 A2 00    # rd_t1 rs1_t0 !10 sltiu   ; Unsigned range 0 through 9
+    63 1C 03 00    # rs1_t1 @digit bnez
+    93 62 05 02    # rd_t0 rs1_a0 !32 ori     ; Fold upper case to lower case
+    93 82 F2 F9    # rd_t0 rs1_t0 !-97 addi
+    13 B3 62 00    # rd_t1 rs1_t0 !6 sltiu
+    E3 0E 03 FA    # rs1_t1 @normal beqz      ; Not hex, continue reading
+    93 82 A2 00    # rd_t0 rs1_t0 !10 addi
 
-    63 18 0A 00    # rs1_s4 @combine bnez     ; if toggle != 0 -> combine
-                   # +16B
-    ; Toggle == 0, we need to prepare for later
-    93 0A 05 00    # rd_s5 rs1_a0 mv          ; Load hold
-
-    13 0A 10 00    # rd_s4 !1 addi            ; Set toggle
-    6F F0 9F F5    # $next_byte jal           ; Read next byte
-                   # -168B
-
-# :combine ; (0x0600134)
-    ; Combine half bytes
-    93 95 4A 00    # rd_a1 rs1_s5 rs2_x4 slli ; Shift logical left 4 times
-    33 05 B5 00    # rd_a0 rs1_a0 rs2_a1 add  ; Combine two half bytes
-    ; Leaves the full byte in a0
-
-    ; Values are combined, now we write in the file
-    23 00 A1 00    # rs1_sp rs2_a0 sb         ; Store prepared byte in buffer
+# :digit ; (0x06000DC)
+    63 4E 0A 00    # rs1_s4 @first bltz       ; Negative means this is the first digit
+    B3 E2 42 01    # rd_t0 rs1_t0 rs2_s4 or   ; Combine two half bytes
+    23 00 51 00    # rs1_sp rs2_t0 sb         ; Store prepared byte in buffer
+    13 85 09 00    # rd_a0 rs1_s3 mv
     93 08 00 04    # rd_a7 !64 addi           ; sys_write
-    13 85 09 00    # rd_a0 rs1_s3 mv          ; file descriptor (stdout)
-    93 05 01 00    # rd_a1 rs1_sp mv          ; string address
     73 00 00 00    # ecall
+    6F F0 9F F9    # $pair jal
 
-    ; Update globals
-    13 0A 00 00    # rd_s4 mv                 ; Clear toggle
-    93 0A 00 00    # rd_s5 mv                 ; Clear hold
+# :first ; (0x06000F8)
+    13 9A 42 00    # rd_s4 rs1_t0 rs2_x4 slli ; Shift logical left 4 times
+    6F F0 5F F9    # $normal jal
 
-    ; Read next byte
-    6F F0 1F F3    # $next_byte jal
-                   # -208B
+# :read ; (0x0600100)
+    13 05 09 00    # rd_a0 rs1_s2 mv
+    93 08 F0 03    # rd_a7 !63 addi           ; sys_read
+    73 00 00 00    # ecall
+    63 06 05 00    # rs1_a0 @exit beqz        ; If the file ended (0 bytes read) terminate
+    03 05 01 00    # rd_a0 rs1_sp lb
+    67 80 03 00    # rs1_t2 jalr              ; Return to the caller
 
-# :terminate  ; (0x60015C)
-    ; Terminate program with 0 return code
+# :exit ; (0x0600118)
     93 08 D0 05    # rd_a7 !93 addi           ; sys_exit
     73 00 00 00    # ecall
-# PROGRAM END
 
-# :ELF_end ; (0x600164)
+# :ELF_end ; (0x0600120)
