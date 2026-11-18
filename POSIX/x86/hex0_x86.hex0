@@ -49,8 +49,8 @@
 00 80 04 08                     # ph_vaddr
 00 80 04 08                     # ph_physaddr
 
-B5 00 00 00                     # ph_filesz
-B5 00 00 00                     # ph_memsz
+B3 00 00 00                     # ph_filesz
+B3 00 00 00                     # ph_memsz
 
 01 00 00 00                     # ph_flags: PF-X = 1
 01 00 00 00                     # ph_align
@@ -61,7 +61,7 @@ B5 00 00 00                     # ph_memsz
 # Simply jump to _start
 # Our main function
 # :_start ; (0x804804C)
-	58                          ; pop_eax                     # Get the number of arguments
+	5D                          ; pop_ebp                     # Get the number of arguments
 	5B                          ; pop_ebx                     # Get the program name
 	5B                          ; pop_ebx                     # Get the actual input name
 	31C9                        ; xor_ecx,ecx                 # prepare read_only, ecx = 0
@@ -80,18 +80,16 @@ B5 00 00 00                     # ph_memsz
 	42                          ; inc_edx                     # edx = 1 (count for read/write)
 	97                          ; xchg_eax,edi                # Preserve outfile
 
-#:loop_reset_all ; (0x8048069)
-	31ED                        ; xor_ebp,ebp                 # ebp = 0 (no prior hex val)
 
 # Comment tracking is done with esi.
 # esi is decremented if we hit a
 # comment (';' or '#') and reset
 # if we hit a new-line.
-#:loop_reset_comment ; (0x804806B)
+#:loop_reset_comment ; (0x8048069)
 	89D6                        ; mov_esi,edx                 # Set no current comment
-#:loop_add_comment ; (0x804806D)
+#:loop_add_comment ; (0x804806B)
 	4E                          ; dec_esi
-#:loop ; (0x804806E)
+#:loop ; (0x804806C)
 
 	# Read a byte
 	5B                          ; pop_ebx                     # Get infile
@@ -109,7 +107,7 @@ B5 00 00 00                     # ph_memsz
 	31DB                        ; xor_ebx,ebx                 # Set return success (ebx = 0)
 	CD 80                       ; int !0x80                   # Exit
 
-#:cont ; (0x8048080)
+#:cont ; (0x804807E)
 	8A01                        ; mov_al,[ecx]                # Move prog byte in eax
 
 	# New line check
@@ -137,7 +135,7 @@ B5 00 00 00                     # ph_memsz
 	3C 07                       ; cmp_al, !7                  # Check for value 'A'-'F'
 	73 CE                       ; jae !loop                   # We don't have hex value ignore it
 
-#:write ; (0x80480A8)
+#:write ; (0x804809E)
 	C1E5 04                     ; shl_ebp, !4                 # Shift up existing hex digit
 	04 0A                       ; add_al, !10                 # Finish converting ascii to raw value
 	01C5                        ; add_ebp,eax                 # Combine the hex digits
@@ -151,5 +149,5 @@ B5 00 00 00                     # ph_memsz
 	89FB                        ; mov_ebx,edi                 # Move outfile to ebx
 	B0 04                       ; mov_al, !4                  # Set write syscall in eax
 	CD 80                       ; int !0x80                   # Do the write
-	EB B4                       ; jmp !loop_reset_all         # Start a fresh byte
-#:ELF_end ; (0x80480B5)
+	EB B6                       ; jmp !loop_reset_comment     # Start a fresh byte
+#:ELF_end ; (0x80480B3)
