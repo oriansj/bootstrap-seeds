@@ -49,8 +49,8 @@
 00 80 04 08                     # ph_vaddr
 00 80 04 08                     # ph_physaddr
 
-B3 00 00 00                     # ph_filesz
-B3 00 00 00                     # ph_memsz
+B1 00 00 00                     # ph_filesz
+B1 00 00 00                     # ph_memsz
 
 01 00 00 00                     # ph_flags: PF-X = 1
 01 00 00 00                     # ph_align
@@ -115,15 +115,14 @@ B3 00 00 00                     # ph_memsz
 	74 E5                       ; je !loop_reset_comment      # If new-line, end comment handling
 
 	# In comment check
-	85F6                        ; test_esi,esi                # Skip byte if we are in a comment
-	75 E4                       ; jne !loop
+	09F0                        ; or_eax,esi                  # Skip byte if we are in a comment
 
 	# Start comment check
 	3C 23                       ; cmp_al, !35                 # Start of '#' comment
-	74 DF                       ; je !loop_add_comment
+	74 E1                       ; je !loop_add_comment
 
 	3C 3B                       ; cmp_al, !59                 # Start of ';' comment
-	74 DB                       ; je !loop_add_comment
+	74 DD                       ; je !loop_add_comment
 
 	# Start of hex str to int
 	2C 30                       ; sub_al, !48                 # Subtract ascii '0' from al
@@ -133,21 +132,21 @@ B3 00 00 00                     # ph_memsz
 	2C 07                       ; sub_al, !7                  # Subtract ('A'-'0') from al
 	24 DF                       ; and_al, !0xDF               # Remove lower case bit
 	3C 07                       ; cmp_al, !7                  # Check for value 'A'-'F'
-	73 CE                       ; jae !loop                   # We don't have hex value ignore it
+	73 D0                       ; jae !loop                   # We don't have hex value ignore it
 
-#:write ; (0x804809E)
+#:write ; (0x804809C)
 	C1E5 04                     ; shl_ebp, !4                 # Shift up existing hex digit
 	04 0A                       ; add_al, !10                 # Finish converting ascii to raw value
 	01C5                        ; add_ebp,eax                 # Combine the hex digits
 
 	# Check if this is first digit in hex val
 	F7DF                        ; neg_edi                     # Flip sign of edi to indicate we got a digit
-	7C C3                       ; jl !loop                    # Negative -> first digit, get another one
+	7C C5                       ; jl !loop                    # Negative -> first digit, get another one
 
 	# We have both digits in low byte of ebp, good to write
 	8929                        ; mov_[ecx],ebp               # Move edge to buffer
 	89FB                        ; mov_ebx,edi                 # Move outfile to ebx
 	B0 04                       ; mov_al, !4                  # Set write syscall in eax
 	CD 80                       ; int !0x80                   # Do the write
-	EB B6                       ; jmp !loop_reset_comment     # Start a fresh byte
-#:ELF_end ; (0x80480B3)
+	EB B8                       ; jmp !loop_reset_comment     # Start a fresh byte
+#:ELF_end ; (0x80480B1)
