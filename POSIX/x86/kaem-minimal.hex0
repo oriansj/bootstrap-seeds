@@ -48,8 +48,8 @@
 	00 80 04 08                     # ph_vaddr
 	00 80 04 08                     # ph_physaddr
 
-	78 02 00 00                     # ph_filesz
-	78 02 00 00                     # ph_memsz
+	39 02 00 00                     # ph_filesz
+	39 02 00 00                     # ph_memsz
 
 	07 00 00 00                     # ph_flags: PF-X|PF-W|PF-R = 7
 	01 00 00 00                     # ph_align
@@ -63,7 +63,7 @@
 	85DB                            ; test_ebx,ebx                      # Check for missing output
 	75 06                           ; jne !_start_out                   # Have real input
 	50                              ; push_eax                          # Need to adjust stack
-	BB 32820408                     ; mov_ebx, &default_file            # Use "kaem.x86"
+	BB 07820408                     ; mov_ebx, &default_file            # Use "kaem.x86"
 
 # :_start_out ; (0x8048059)
 	31C9                            ; xor_ecx,ecx                       # prepare read_only
@@ -72,8 +72,8 @@
 	CD80                            ; int !0x80                         # Now open that damn file
 
 	85C0                            ; test_eax,eax                      # IF NULL We couldn't open the file
-	7E 6C                           ; jle !Exit_Failure                 # Abort hard
-	A3 60820408                     ; mov_[DWORD],eax &script           # Set input pointer
+	7E 5E                           ; jle !Exit_Failure                 # Abort hard
+	89C6                            ; mov_esi,eax                       # Set input pointer
 
 	58                              ; pop_eax                           # Get start of envp
 	89E5                            ; mov_ebp,esp                       # Protect envp
@@ -82,37 +82,37 @@
 	58                              ; pop_eax                           # the Syscall # for SYS_BRK
 	31DB                            ; xor_ebx,ebx                       # Get current brk
 	CD80                            ; int !0x80                         # Let the kernel do the work
-	A3 70820408                     ; mov_[DWORD],eax &MALLOC           # Set our malloc pointer
+	89C7                            ; mov_edi,eax                       # Set our malloc pointer
 
 	# Where the main work gets done
+	# Using ESI for script, EDI for MALLOC and EDX for command_done
 	# Using EBX for tokens and ECX for tokens[i]
-# :main_loop ; (0x8048078)
-	A1 68820408                     ; mov_eax,[DWORD] &max_args         # Using 256 char* of space
-	E8 3F010000                     ; call %malloc                      # get it
+# :main_loop ; (0x8048072)
+	B8 00040000                     ; mov_eax, %1024                    # Using 256 char* of space
+	E8 29010000                     ; call %malloc                      # get it
 	89C3                            ; mov_ebx,eax                       # set tokens
 
 	89D9                            ; mov_ecx,ebx                       # I = 0
 	31C0                            ; xor_eax,eax                       # Using 0
-	A3 74820408                     ; mov_[DWORD],eax &status           # status = 0
-	A3 64820408                     ; mov_[DWORD],eax &command_done     # command_done = 0
+	A3 35820408                     ; mov_[DWORD],eax &status           # status = 0
+	31D2                            ; xor_edx,edx                       # command_done = 0
 
 	# Using EAX for result and EBX for tokens[i]
-# :collect_command ; (0x8048092)
-	E8 95000000                     ; call %collect_token               # Get another token
+# :collect_command ; (0x8048089)
+	E8 90000000                     ; call %collect_token               # Get another token
 	85C0                            ; test_eax,eax                      # if NULL == result
 	74 05                           ; je !collect_command_comment       # It is a comment, don't store
 
 	8901                            ; mov_[ecx],eax                     # tokens[i] = result
 	83C1 04                         ; add_ecx, !4                       # i = i + 1 (adjusted for char* size)
 
-# :collect_command_comment ; (0x80480A0)
-	A1 64820408                     ; mov_eax,[DWORD] &command_done     # Using command_done
-	85C0                            ; test_eax,eax                      # IF 0 == command_done
-	74 E9                           ; je !collect_command               # keep looping
+# :collect_command_comment ; (0x8048097)
+	85D2                            ; test_edx,edx                      # IF 0 == command_done
+	74 EE                           ; je !collect_command               # keep looping
 
 	# Deal with line comments
 	39CB                            ; cmp_ebx,ecx                       # if 0 < i
-	74 CB                           ; je !main_loop                     # It was a comment
+	74 D3                           ; je !main_loop                     # It was a comment
 
 	E8 4F000000                     ; call %print_command               # print the command
 	8B03                            ; mov_eax,[ebx]                     # program = tokens[0]
@@ -142,30 +142,30 @@
 # Receives nothing
 # And aborts hard
 # Does NOT return
-# :Exit_Failure ; (0x80480D0)
+# :Exit_Failure ; (0x80480C2)
 	6A 01                           ; push !1
 	5B                              ; pop_ebx                           # All is wrong
 	89D8                            ; mov_eax,ebx                       # put the exit syscall number in eax
 	CD 80                           ; int !0x80                         # Call it a bad day
 
-# :collect_command_parent ; (0x80480D7)
+# :collect_command_parent ; (0x80480C9)
 	89C3                            ; mov_ebx,eax                       # first arg = f
-	B9 74820408                     ; mov_ecx, &status                  # second arg = &status
+	B9 35820408                     ; mov_ecx, &status                  # second arg = &status
 	31D2                            ; xor_edx,edx                       # third arg = NULL
 	6A 07                           ; push !7
 	58                              ; pop_eax                           # WAITPID
 	CD 80                           ; int !0x80                         # waitpid(f, &status, 0)
 
-	A1 74820408                     ; mov_eax,[DWORD] &status           # Using status
+	A1 35820408                     ; mov_eax,[DWORD] &status           # Using status
 	85C0                            ; test_eax,eax                      # IF 0 == status
-	74 8A                           ; je !main_loop                     # Loop forever
+	74 92                           ; je !main_loop                     # Loop forever
 
 	# Deal with very unhappy case
-	B8 40820408                     ; mov_eax, &hard                    # Using "Subprocess error\nABORTING HARD\n"
-	E8 07010000                     ; call %File_Print                  # Print it
+	B8 15820408                     ; mov_eax, &hard                    # Using "Subprocess error\nABORTING HARD\n"
+	E8 EA000000                     ; call %File_Print                  # Print it
 	EB D6                           ; jmp !Exit_Failure                 # return error
 
-# :Done ; (0x80480FA)
+# :Done ; (0x80480EC)
 	# program completed Successfully
 	31DB                            ; xor_ebx,ebx                       # All is well
 	6A 01                           ; push !1
@@ -175,23 +175,23 @@
 # print_command function
 # Receives tokens[j] in EBX and tokens[i] in ECX
 # Modifies EAX
-# :print_command ; (0x8048101)
+# :print_command ; (0x80480F3)
 	53                              ; push_ebx                          # Protect EBX
-	B8 3B820408                     ; mov_eax, &prefix                  # using " +> "
-	E8 F3000000                     ; call %File_Print                  # print it
-# :print_command_loop ; (0x804810C)
+	B8 10820408                     ; mov_eax, &prefix                  # using " +> "
+	E8 D6000000                     ; call %File_Print                  # print it
+# :print_command_loop ; (0x80480FE)
 	8B03                            ; mov_eax,[ebx]                     # using tokens[j]
-	E8 EC000000                     ; call %File_Print                  # print it
+	E8 CF000000                     ; call %File_Print                  # print it
 	83C3 04                         ; add_ebx, !4                       # j = j + 1
 	6A 20                           ; push !32
 	58                              ; pop_eax                           # using ' '
-	E8 FE000000                     ; call %fputc                       # print it
+	E8 E1000000                     ; call %fputc                       # print it
 	39CB                            ; cmp_ebx,ecx                       # IF j < i
 	75 EA                           ; jne !print_command_loop           # otherwise keep looping
 
 	6A 0A                           ; push !10
 	58                              ; pop_eax                           # using '\n'
-	E8 F2000000                     ; call %fputc                       # print it
+	E8 D5000000                     ; call %fputc                       # print it
 	5B                              ; pop_ebx                           # Restore EBX
 	C3                              ; ret
 
@@ -200,72 +200,68 @@
 # Receives nothing
 # Overwrites EAX
 # Uses EAX as C, EBX as token and ECX as token[i]
-# :collect_token ; (0x804812C)
+# :collect_token ; (0x804811E)
 	53                              ; push_ebx                          # Protect EBX
 	51                              ; push_ecx                          # Protect ECX
-	A1 6C820408                     ; mov_eax,[DWORD] &max_string       # Using max_string
-	E8 89000000                     ; call %malloc                      # allocate space
+	B8 00100000                     ; mov_eax, %4096                    # Using max_string
+	E8 7B000000                     ; call %malloc                      # allocate space
 	89C3                            ; mov_ebx,eax                       # token = malloc(max_string)
 	89C1                            ; mov_ecx,eax                       # i = 0; set token[i]
 
-# :collect_token_loop ; (0x804813C)
-	E8 9F000000                     ; call %fgetc                       # c = fgetc(input)
+# :collect_token_loop ; (0x804812E)
+	E8 86000000                     ; call %fgetc                       # c = fgetc(input)
 	3C FC                           ; cmp_al, !-4                       # if C == EOF
 	74 B5                           ; je !Done                          # We are done
 
 	3C 20                           ; cmp_al, !32                       # IF C == ' '
-	74 42                           ; je !collect_token_done            # Space terminates token
+	74 34                           ; je !collect_token_done            # Space terminates token
 
 	3C 09                           ; cmp_al, !9                        # IF C == '\t'
-	74 3E                           ; je !collect_token_done            # tab terminates token
+	74 30                           ; je !collect_token_done            # tab terminates token
 
 	3C 0A                           ; cmp_al, !10                       # IF C == '\n'
-	75 0A                           ; jne !collect_token_string         # otherwise check next
+	75 03                           ; jne !collect_token_string         # otherwise check next
 
 	# It is a newline
-	6A 01                           ; push !1
-	58                              ; pop_eax                           # Using 1
-	A3 64820408                     ; mov_[DWORD],eax &command_done     # Set command_done = TRUE
-	EB 30                           ; jmp !collect_token_done           # Be done
+	42                              ; inc_edx                           # Set command_done = TRUE
+	EB 29                           ; jmp !collect_token_done           # Be done
 
-# :collect_token_string ; (0x804815B)
+# :collect_token_string ; (0x8048146)
 	3C 22                           ; cmp_al, !34                       # IF C == '\"'
 	75 07                           ; jne !collect_token_comment        # otherwise check next
 
 	# It is a RAW STRING
-	E8 32000000                     ; call %collect_string              # Get the rest of the string
-	EB 25                           ; jmp !collect_token_done           # Be done
+	E8 2B000000                     ; call %collect_string              # Get the rest of the string
+	EB 1E                           ; jmp !collect_token_done           # Be done
 
-# :collect_token_comment ; (0x8048166)
+# :collect_token_comment ; (0x8048151)
 	3C 23                           ; cmp_al, !35                       # IF C == '#'
-	75 0F                           ; jne !collect_token_escape         # otherwise check next
+	75 08                           ; jne !collect_token_escape         # otherwise check next
 
 	# It is a line comment
-	E8 40000000                     ; call %collect_comment             # Read it all
-	6A 01                           ; push !1
-	58                              ; pop_eax                           # Using 1
-	A3 64820408                     ; mov_[DWORD],eax &command_done     # Set command_done = TRUE
+	E8 39000000                     ; call %collect_comment             # Read it all
+	42                              ; inc_edx                           # Set command_done = TRUE
 	EB 12                           ; jmp !collect_token_done           # Be done
 
-# :collect_token_escape ; (0x8048179)
+# :collect_token_escape ; (0x804815D)
 	3C 5C                           ; cmp_al, !92                       # IF C == '\\'
 	75 07                           ; jne !collect_token_other          # otherwise just store it
 
 	# It is an escape char
-	E8 5E000000                     ; call %fgetc                       # Read the char to drop
+	E8 53000000                     ; call %fgetc                       # Read the char to drop
 	EB 07                           ; jmp !collect_token_done           # Be done
 
-# :collect_token_other ; (0x8048184)
+# :collect_token_other ; (0x8048168)
 	8801                            ; mov_[ecx],al                      # token[i] = C
 	83C1 01                         ; add_ecx, !1                       # i = i + 1
-	EB B1                           ; jmp !collect_token_loop           # Keep going
+	EB BF                           ; jmp !collect_token_loop           # Keep going
 
-# :collect_token_done ; (0x804818B)
+# :collect_token_done ; (0x804816F)
 	39CB                            ; cmp_ebx,ecx                       # IF i == 0
 	75 02                           ; jne !collect_token_good           # otherwise return the token
 	31DB                            ; xor_ebx,ebx                       # token = NULL
 
-# :collect_token_good ; (0x8048191)
+# :collect_token_good ; (0x8048175)
 	89D8                            ; mov_eax,ebx                       # Return token
 	59                              ; pop_ecx                           # Restore ECX
 	5B                              ; pop_ebx                           # Restore EBX
@@ -276,10 +272,10 @@
 # Receives target[index] in ECX
 # Modifies EAX
 # Uses EAX as C
-# :collect_string ; (0x8048196)
-	E8 45000000                     ; call %fgetc                       # C = fgetc(input)
+# :collect_string ; (0x804817A)
+	E8 3A000000                     ; call %fgetc                       # C = fgetc(input)
 	3C FC                           ; cmp_al, !-4                       # if C == EOF
-	0F84 2DFFFFFF                   ; je32 %Exit_Failure                # Something went horribly wrong
+	0F84 3BFFFFFF                   ; je32 %Exit_Failure                # Something went horribly wrong
 
 	3C 22                           ; cmp_al, !34                       # IF C == '\"'
 	74 07                           ; je !collect_string_done           # be done
@@ -289,7 +285,7 @@
 	83C1 01                         ; add_ecx, !1                       # index = index + 1
 	EB E8                           ; jmp !collect_string               # Keep going
 
-# :collect_string_done ; (0x80481AE)
+# :collect_string_done ; (0x8048192)
 	C3                              ; ret
 
 
@@ -298,10 +294,10 @@
 # Modifies EAX
 # uses EAX as Int C
 # Just throws away everything it reads
-# :collect_comment ; (0x80481AF)
-	E8 2C000000                     ; call %fgetc                       # C = fgetc(input)
+# :collect_comment ; (0x8048193)
+	E8 21000000                     ; call %fgetc                       # C = fgetc(input)
 	3C FC                           ; cmp_al, !-4                       # IF C == EOF
-	0F84 14FFFFFF                   ; je32 %Exit_Failure                # abort hard
+	0F84 22FFFFFF                   ; je32 %Exit_Failure                # abort hard
 
 	3C 0A                           ; cmp_al, !10                       # IF C == '\n'
 	75 EF                           ; jne !collect_comment              # otherwise keep looping
@@ -310,18 +306,18 @@
 
 ;; Malloc isn't actually required if the program being built fits in the initial memory
 ;; However, it doesn't take much to add it.
-;; Requires [MALLOC] to be initialized and EAX to have the number of desired bytes
-# :malloc ; (0x80481C1)
+;; Requires EDI to be initialized and EAX to have the number of desired bytes
+# :malloc ; (0x80481A5)
 	53                              ; push_ebx                          # Protect EBX
 	51                              ; push_ecx                          # Protect ECX
 	52                              ; push_edx                          # Protect EDX
-	8B1D 70820408                   ; mov_ebx,[DWORD] &MALLOC           # Using the current pointer
+	89FB                            ; mov_ebx,edi                       # Using the current pointer
 	01C3                            ; add_ebx,eax                       # Request the number of desired bytes
 	6A 2D                           ; push !45
 	58                              ; pop_eax                           # the Syscall # for SYS_BRK
 	CD 80                           ; int !0x80                         # call the Kernel
-	A1 70820408                     ; mov_eax,[DWORD] &MALLOC           # Return pointer
-	891D 70820408                   ; mov_[DWORD],ebx &MALLOC           # Update pointer
+	89F8                            ; mov_eax,edi                       # Return pointer
+	89DF                            ; mov_edi,ebx                       # Update pointer
 	5A                              ; pop_edx                           # Restore EDX
 	59                              ; pop_ecx                           # Restore ECX
 	5B                              ; pop_ebx                           # Restore EBX
@@ -329,9 +325,9 @@
 
 
 # fgetc function
-# Loads FILE* from [script]
+# Loads FILE* from ESI
 # Returns -4 (EOF) or char in AL
-# :fgetc ; (0x80481E0)
+# :fgetc ; (0x80481B9)
 	53                              ; push_ebx                          # Protect EBX
 	51                              ; push_ecx                          # Protect ECX
 	52                              ; push_edx                          # Protect EDX
@@ -339,7 +335,7 @@
 	58                              ; pop_eax                           # Put EOF in eax
 	50                              ; push_eax                          # Assume bad (If nothing read, value will remain EOF)
 	8D0C24                          ; lea_ecx,[esp]                     # Get stack address
-	8B1D 60820408                   ; mov_ebx,[DWORD] &script           # Where are we reading from
+	89F3                            ; mov_ebx,esi                       # Where are we reading from
 	6A 03                           ; push !3
 	58                              ; pop_eax                           # the syscall number for read
 	6A 01                           ; push !1
@@ -347,7 +343,7 @@
 	CD 80                           ; int !0x80                         # call the Kernel
 	58                              ; pop_eax                           # Get either char or EOF
 	3C FC                           ; cmp_al, !-4                       # Check for EOF
-# :fgetc_done ; (0x80481FB)
+# :fgetc_done ; (0x80481D0)
 	5A                              ; pop_edx                           # Restore EDX
 	59                              ; pop_ecx                           # Restore ECX
 	5B                              ; pop_ebx                           # Restore EBX
@@ -357,13 +353,13 @@
 # File_Print function
 # Receives CHAR* in EAX
 # calls fputc for every non-null char
-# :File_Print ; (0x80481FF)
+# :File_Print ; (0x80481D4)
 	53                              ; push_ebx                          # Protect EBX
 	51                              ; push_ecx                          # Protect ECX
 	89C3                            ; mov_ebx,eax                       # Protect S
 	85C0                            ; test_eax,eax                      # Protect against nulls
 	74 12                           ; je !File_Print_Done               # Simply don't try to print them
-# :File_Print_Loop ; (0x8048207)
+# :File_Print_Loop ; (0x80481DC)
 	31C0                            ; xor_eax,eax                       # Zero eax
 	8A03                            ; mov_al,[ebx]                      # Read byte
 	85C0                            ; test_eax,eax                      # Check for NULL
@@ -373,7 +369,7 @@
 	83C3 01                         ; add_ebx, !1                       # S = S + 1
 	EB EE                           ; jmp !File_Print_Loop              # Keep going
 
-# :File_Print_Done ; (0x8048219)
+# :File_Print_Done ; (0x80481EE)
 	59                              ; pop_ecx                           # Restore ECX
 	5B                              ; pop_ebx                           # Restore EBX
 	C3                              ; ret
@@ -382,7 +378,7 @@
 # fputc function
 # receives CHAR in EAX and load FILE* from stdout
 # writes char and returns
-# :fputc ; (0x804821C)
+# :fputc ; (0x80481F1)
 	53                              ; push_ebx                          # Protect EBX
 	51                              ; push_ecx                          # Protect ECX
 	52                              ; push_edx                          # Protect EDX
@@ -401,22 +397,12 @@
 	C3                              ; ret
 
 
-# :default_file ; (0x8048232)
+# :default_file ; (0x8048207)
 	6B61656D2E78383600              # "kaem.x86"
-# :prefix ; (0x804823B)
+# :prefix ; (0x8048210)
 	202B3E2000                      # " +> "
-# :hard ; (0x8048240)
+# :hard ; (0x8048215)
 	53756270726F63657373206572726F720A41424F5254494E4720484152440A00 # "Subprocess error\nABORTING HARD\n"
-# :script ; (0x8048260)
+# :status ; (0x8048235)
 	00000000
-# :command_done ; (0x8048264)
-	00000000
-# :max_args ; (0x8048268)
-	00040000
-# :max_string ; (0x804826C)
-	00100000
-# :MALLOC ; (0x8048270)
-	00000000
-# :status ; (0x8048274)
-	00000000
-# :ELF_end ; (0x8048278)
+# :ELF_end ; (0x8048239)
