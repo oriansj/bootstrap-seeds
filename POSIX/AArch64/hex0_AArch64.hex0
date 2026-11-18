@@ -57,8 +57,8 @@ B7 00              ## e_machine Indicating AArch64
 00 00 60 00 00 00 00 00 ## p_vaddr
 00 00 60 00 00 00 00 00 ## p_physaddr
 
-0E 02 00 00 00 00 00 00 ## p_filesz
-0E 02 00 00 00 00 00 00 ## p_memsz
+34 01 00 00 00 00 00 00 ## p_filesz
+34 01 00 00 00 00 00 00 ## p_memsz
 
 01 00 00 00 00 00 00 00 ## Required alignment
 
@@ -79,180 +79,55 @@ B7 00              ## e_machine Indicating AArch64
     600C8092                    ; SET_X0_TO_FCNTL_H_AT_FDCWD  # AT_FDCWD, relative to current working directory
     224880D2                    ; SET_X2_TO_577               # Prepare file as O_WRONLY|O_CREAT|O_TRUNC
     033880D2                    ; SET_X3_TO_448               # Prepare file as RWX for owner only (700 in octal)
-    080780D2                    ; SET_X8_TO_SYS_OPENAT        # The syscall number for openat(), aarch64 has no open()
-    010000D4                    ; SYSCALL                     # Open file!
+    010000d4                    ; SYSCALL                     # Open file!
     EA0300AA                    ; SET_X10_FROM_X0             # Preserve the file pointer we were given
 
-    # Our flag for byte processing
-    0F008092                    ; SET_X15_TO_MINUS_1
+    FF0F1FF8                    ; STR_XZR_[SP,MINUS_16]!      # Separate input and output bytes on the stack
+    220080D2                    ; SET_X2_TO_1                 # set the size of chars we want
+    0B008052                    ; SET_W11_TO_0                # Not in a comment
 
-    # temp storage for the sum
-    0E0080D2                    ; SET_X14_TO_0
+#:pair
+    2C008052                    ; SET_W12_TO_1                # Start the marker below the first hex digit
 
-#:loop
-    # Read a byte
-    470000 94                   ; ^~Read_byte CALL
+#:read
+    # Attempt to read 1 byte from input file
+    E00309AA                    ; SET_X0_FROM_X9              # Where are we reading from
+    E1030091                    ; SET_X1_FROM_SP              # Where to put it
+    E80780D2                    ; SET_X8_TO_SYS_READ          # the syscall number for read
+    010000d4                    ; SYSCALL                     # call the Kernel
+    200300B4                    ; CBZ_X0_EXIT                 # Got EOF call it done
+    E0034039                    ; LDRB_W0_[SP]                # load char, unsigned so zero-extended already
+    1F280071                    ; CMP_W0_TO_10
+    EB038B1A                    ; CSEL_W11_WZR_W11_EQ         # A newline ends the comment
+    0BFFFF35                    ; CBNZ_W11_READ               # Ignore the rest of the comment
+    038C0071                    ; SUBS_W3_W0_35               # Purge Comment Lines (#)
+    6418587A                    ; CCMP_W3_24_4_NE             # Purge Comment Lines (;)
+    EB179F1A                    ; CSET_W11_EQ                 # Remember whether a comment starts here
+    80FEFF54                    ; B_EQ_READ
+    03C00051                    ; SUB_W3_W0_48                # Subtract ASCII '0'
+    7F280071                    ; CMP_W3_TO_10
+    C3000054                    ; B_LO_DIGIT                  # deal with 0-9
+    03001B32                    ; ORR_W3_W0_32                # Fold upper case to lower case
+    63840151                    ; SUB_W3_W3_97
+    7F180071                    ; CMP_W3_TO_6
+    A2FDFF54                    ; B_HS_READ                   # Ignore bytes outside a through f
+    63280011                    ; ADD_W3_W3_10
 
-    # process byte
-    120000 94                   ; ^~hex CALL
+#:digit
+    6C100C2A                    ; ORR_W12_W3_W12_LSL_4        # Shift the marker and append the digit
+    4CFD4736                    ; TBZ_W12_8_READ              # Until the marker reaches bit 8, read another digit
+    EC070039                    ; STRB_W12_[SP,1]             # Only the low byte is output
+    E1070091                    ; ADD_X1_SP_1                 # What we are writing
+    E0030AAA                    ; SET_X0_FROM_X10             # Where are we writing to
+    080880D2                    ; SET_X8_TO_SYS_WRITE         # the syscall number for write
+    010000d4                    ; SYSCALL                     # call the Kernel
+    e3ffff 17                   ; ^~pair RBRANCH
 
-    # Deal with -1 values
-    1F0000F1                    ; CMP_X0_TO_0
-    4A000054                    ; SKIP_INST_GE
-    FCFFFF 17                   ; ^~loop RBRANCH
-
-    # deal with toggle
-    FF0100F1                    ; CMP_X15_TO_0
-    4B000054                    ; SKIP_INST_LT
-    040000 14                   ; ^~print BRANCH
-
-    # process first byte of pair
-    EE0300AA                    ; SET_X14_FROM_X0
-    0F0080D2                    ; SET_X15_TO_0
-
-    F6FFFF 17                   ; ^~loop RBRANCH
-
-# process second byte of pair
-#:print
-    # update the sum and store in output
-    00100E8B                    ; ADD_X0_X0_X14_LSL4
-    41000018                    ; LOAD_W1_AHEAD
-    02000014                    ; SKIP_32_DATA
-    0C02 6000                   ; $output DATA_OFFSET 40 00
-    20000039                    ; STR_BYTE_W0_[X1]
-
-    # flip the toggle
-    0F008092                    ; SET_X15_TO_MINUS_1
-
-    2E0000 94                   ; ^~write_byte CALL
-
-    EEFFFF 17                   ; ^~loop RBRANCH
-
-#:hex
-    # Purge Comment Lines (#)
-    1F8C00F1                    ; CMP_X0_TO_35
-    41000054                    ; SKIP_INST_NE
-    170000 14                   ; ^~purge_comment BRANCH
-
-    # Purge Comment Lines (;)
-    1FEC00F1                    ; CMP_X0_TO_59
-    41000054                    ; SKIP_INST_NE
-    140000 14                   ; ^~purge_comment BRANCH
-
-    # deal all ascii less than 0
-    1FC000F1                    ; CMP_X0_TO_48
-    4A000054                    ; SKIP_INST_GE
-    1F0000 14                   ; ^~ascii_other BRANCH
-
-    # deal with 0-9
-    1FE800F1                    ; CMP_X0_TO_58
-    4A000054                    ; SKIP_INST_GE
-    160000 14                   ; ^~ascii_num BRANCH
-
-    # deal with all ascii less than A
-    1F0401F1                    ; CMP_X0_TO_65
-    4A000054                    ; SKIP_INST_GE
-    190000 14                   ; ^~ascii_other BRANCH
-
-    # deal with A-F
-    1F1C01F1                    ; CMP_X0_TO_71
-    4A000054                    ; SKIP_INST_GE
-    140000 14                   ; ^~ascii_high BRANCH
-
-    # deal with all ascii less than a
-    1F8401F1                    ; CMP_X0_TO_97
-    4A000054                    ; SKIP_INST_GE
-    130000 14                   ; ^~ascii_other BRANCH
-
-    # deal with a-f
-    1F9C01F1                    ; CMP_X0_TO_103
-    4A000054                    ; SKIP_INST_GE
-    0C0000 14                   ; ^~ascii_low BRANCH
-
-    # The rest that remains needs to be ignored
-    0F0000 14                   ; ^~ascii_other BRANCH
-
-#:purge_comment
-    FE0F1FF8                    ; PUSH_LR                     # push lr
-
-#:purge_comment_loop
-    # Read a byte
-    1A0000 94                   ; ^~Read_byte CALL
-
-    # Loop if not LF
-    1F2800F1                    ; CMP_X0_TO_10
-    40000054                    ; SKIP_INST_EQ
-    FDFFFF 17                   ; ^~purge_comment_loop RBRANCH
-
-    # Otherwise return -1
-    00008092                    ; SET_X0_TO_MINUS_1
-
-    FE0741F8                    ; POP_LR                      # pop lr
-    C0035FD6                    ; RETURN
-
-#:ascii_num
-    00C000D1                    ; SUB_X0_48
-    C0035FD6                    ; RETURN
-
-#:ascii_low
-    005C01D1                    ; SUB_X0_87
-    C0035FD6                    ; RETURN
-
-#:ascii_high
-    00DC00D1                    ; SUB_X0_55
-    C0035FD6                    ; RETURN
-
-#:ascii_other
-    00008092                    ; SET_X0_TO_MINUS_1
-    C0035FD6                    ; RETURN
-
-#:Done
+#:exit
     # program completed Successfully
-    000080D2                    ; SET_X0_TO_0                 # All is well
     A80B80D2                    ; SET_X8_TO_SYS_EXIT          # put the exit syscall number in x8
     010000d4                    ; SYSCALL
 
-#:write_byte
-    # Print our Hex
-    E0030AAA                    ; SET_X0_FROM_X10             # Where are we writing to
-    41000018                    ; LOAD_W1_AHEAD               # What we are writing
-    02000014                    ; SKIP_32_DATA
-    0C02 6000                   ; $output DATA_OFFSET
-    220080D2                    ; SET_X2_TO_1                 # set the size of chars we want
-    080880D2                    ; SET_X8_TO_SYS_WRITE         # the syscall number for write
-    010000d4                    ; SYSCALL                     # call the Kernel
-    C0035FD6                    ; RETURN
-
-#:Read_byte
-    # Attempt to read 1 byte from input file
-    E00309AA                    ; SET_X0_FROM_X9              # Where are we reading from
-    41000018                    ; LOAD_W1_AHEAD               # Where to put it
-    02000014                    ; SKIP_32_DATA
-    0D02 6000                   ; $input DATA_OFFSET
-    220080D2                    ; SET_X2_TO_1                 # set the size of chars we want
-    E80780D2                    ; SET_X8_TO_SYS_READ          # the syscall number for read
-    010000D4                    ; SYSCALL                     # call the Kernel
-
-    1F0000F1                    ; CMP_X0_TO_0                 # Got EOF call it done
-    41000054                    ; SKIP_INST_NE
-    ECFFFF 17                   ; ^~Done RBRANCH
-
-    # load byte
-    40000098                    ; LOAD_W0_AHEAD
-    02000014                    ; SKIP_32_DATA
-    0D02 6000                   ; $input DATA_OFFSET
-    00004039                    ; LDR_BYTE_W0_[X0]            # load char, unsigned so zero-extended already
-    C0035FD6                    ; RETURN
-
-#:ELF_data
-# Where we are putting our output
-#:output
-    # Reserve a byte
-    00
-
-# Where we get our input
-#:input
-    # Reserve a byte
-    00
-
 #:ELF_end
+#:ELF_sym
+#:ELF_str
