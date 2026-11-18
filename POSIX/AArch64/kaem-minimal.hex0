@@ -53,8 +53,8 @@ B7 00                          # e_machine Indicating AArch64
 00 00 00 00 00 00 00 00                   # ph_offset
 00 00 60 00 00 00 00 00                     # ph_vaddr
 00 00 60 00 00 00 00 00                     # ph_physaddr
-C2 05 00 00 00 00 00 00             # ph_filesz
-C2 05 00 00 00 00 00 00             # ph_memsz
+BA 02 00 00 00 00 00 00             # ph_filesz
+BA 02 00 00 00 00 00 00             # ph_memsz
 01 00 00 00 00 00 00 00                   # ph_align
 
 
@@ -65,448 +65,201 @@ C2 05 00 00 00 00 00 00             # ph_memsz
 # Our main function
 #:_start
     e10b40f9                    ; LDR_X1_[SP,16]              # Get the actual input name
-    e2830091                    ; ADD_X2_SP_32                # Get envp (hopefullY)
-    3f0000f1                    ; CMP_X1_TO_0                 # Check for missing output
-    40000054                    ; SKIP_INST_EQ                # Have real input
-    050000 14                   ; ^~_start_out FBRANCH
-    e2630091                    ; ADD_X2_SP_24                # Nope, envp is here!
-    41000018                    ; LOAD_W1_AHEAD               # Use "kaem.aarch64"
-    02000014                    ; SKIP_32_DATA
-    90056000                    ; &default_file
+    f4830091                    ; ADD_X20_SP_32               # Get envp (hopefullY)
+    610000b5                    ; CBNZ_X1_OPEN_SCRIPT         # Have real input
+    f4630091                    ; ADD_X20_SP_24               # Nope, envp is here!
+    e10f0010                    ; ADR_X1_DEFAULT_FILE         # Use "kaem.aarch64"
 
-#:_start_out
-    49000018                    ; LOAD_W9_AHEAD
-    02000014                    ; SKIP_32_DATA
-    D8046000                    ; &envp
-    220100f9                    ; STR_X2_[X9]                 # Protect envp
-
+#:open_script
     600c8092                    ; SET_X0_TO_FCNTL_H_AT_FDCWD  # AT_FDCWD, relative to current working directory
     020080d2                    ; SET_X2_TO_0                 # prepare read_only
     080780d2                    ; SET_X8_TO_SYS_OPENAT        # the syscall number for openat()
     010000d4                    ; SYSCALL                     # Now open that damn file
-
     1f0000f1                    ; CMP_X0_TO_0                 # IF NULL We couldn't open the file
-    4c000054                    ; SKIP_INST_GT                # Abort hard
-    590000 14                   ; ^~Exit_Failure FBRANCH
-    49000018                    ; LOAD_W9_AHEAD               # Set input pointer
-    02000014                    ; SKIP_32_DATA
-    e0046000                    ; &script
-    200100f9                    ; STR_X0_[X9]
+    ad0b0054                    ; B_LE_EXIT                   # Abort hard
+    f30300aa                    ; SET_X19_FROM_X0             # Set input pointer
+    ff4302d1                    ; SUB_SP_SP_144               # Reserve 128 bytes for siginfo and a separate read byte
 
-    c81a80d2                    ; SET_X8_TO_SYS_BRK           # the Syscall # for SYS_BRK
     000080d2                    ; SET_X0_TO_0                 # Get current brk
+    c81a80d2                    ; SET_X8_TO_SYS_BRK           # the Syscall # for SYS_BRK
     010000d4                    ; SYSCALL                     # Let the kernel do the work
-    49000018                    ; LOAD_W9_AHEAD               # Set our malloc pointer
-    02000014                    ; SKIP_32_DATA
-    08056000                    ; &MALLOC
-    200100f9                    ; STR_X0_[X9]
+    f50300aa                    ; SET_X21_FROM_X0             # Set our malloc pointer
 
+#:command
     # Where the main work gets done
-    # Using X1 for tokens and X2 for tokens[i]
-#:main_loop
-    49000018                    ; LOAD_W9_AHEAD               # Using 256 char* of space
-    02000014                    ; SKIP_32_DATA
-    f8046000                    ; &max_args
-    200140f9                    ; LDR_X0_[X9]
-    b30000 94                   ; ^~malloc FCALL              # get it
-    e10300aa                    ; SET_X1_FROM_X0              # set tokens
+    000081d2                    ; SET_X0_TO_2048              # Using 256 char* of space
+    570000 94                   ; ^~malloc FCALL              # get it
+    f60300aa                    ; SET_X22_FROM_X0             # set tokens
+    f70300aa                    ; SET_X23_FROM_X0             # I = 0
+    ff0f00f9                    ; STR_XZR_[SP,24]             # status = 0
 
-    e20301aa                    ; SET_X2_FROM_X1              # I = 0
-    000080d2                    ; SET_X0_TO_0                 # Using 0
-    49000018                    ; LOAD_W9_AHEAD               # status = 0
-    02000014                    ; SKIP_32_DATA
-    10056000                    ; &info
-    200d00f9                    ; STR_X0_[X9,24]
-    49000018                    ; LOAD_W9_AHEAD               # command_done = 0
-    02000014                    ; SKIP_32_DATA
-    f0046000                    ; &command_done
-    200100f9                    ; STR_X0_[X9]
+#:word
+    000082d2                    ; SET_X0_TO_4096              # Using max_string
+    520000 94                   ; ^~malloc FCALL              # allocate space
+    f80300aa                    ; SET_X24_FROM_X0             # token = malloc(max_string);
+    f90300aa                    ; SET_X25_FROM_X0             # i = 0; set token[i]
 
-    # Using X0 for result and X1 for tokens[i]
-#:collect_command
-    530000 94                   ; ^~collect_token FCALL       # Get another token
-    1f0000f1                    ; CMP_X0_TO_0                 # if NULL == result
-    41000054                    ; SKIP_INST_NE                # It is a comment, don't store
-    030000 14                   ; ^~collect_command_comment FBRANCH
+#:scan
+    560000 94                   ; ^~fgetc FCALL               # c = fgetc(input);
+    1ff00371                    ; CMP_W0_TO_252               # if C == EOF
+    40090054                    ; B_EQ_DONE
+    1f280071                    ; CMP_W0_TO_10                # IF C == '\n'
+    a0030054                    ; B_EQ_LINE_END
+    1f800071                    ; CMP_W0_TO_32                # IF C == ' '
+    0418497a                    ; CCMP_W0_9_4_NE              # IF C == '\t'
+    20020054                    ; B_EQ_WORD_END
+    1f880071                    ; CMP_W0_TO_34                # IF C == '\"'
+    e0000054                    ; B_EQ_QUOTED
+    1f8c0071                    ; CMP_W0_TO_35                # IF C == '#'
+    20020054                    ; B_EQ_COMMENT
+    1f700171                    ; CMP_W0_TO_92                # IF C == '\\'
+    40010054                    ; B_EQ_ESCAPED
+    20170038                    ; STRB_W0_[X25]_POST_1        # token[i] = C
+    f1ffff 17                   ; ^~scan RBRANCH              # Keep going
 
-    400000f9                    ; STR_X0_[X2]                 # tokens[i] = result
-    42200091                    ; ADD_X2_X2_8                 # i = i + 1 (adjusted for char* size)
+#:quoted
+    # It is a RAW STRING
+    460000 94                   ; ^~fgetc FCALL               # C = fgetc(input)
+    1ff00371                    ; CMP_W0_TO_252               # if C == EOF
+    60070054                    ; B_EQ_EXIT                   # Something went horribly wrong
+    1f880071                    ; CMP_W0_TO_34
+    80000054                    ; B_EQ_WORD_END_FROM_QUOTED   # be done
+    20170038                    ; STRB_W0_[X25]_POST_1        # target[index] = C
+    faffff 17                   ; ^~quoted RBRANCH            # Keep going
 
-#:collect_command_comment
-    49000018                    ; LOAD_W9_AHEAD               # Using command_done
-    02000014                    ; SKIP_32_DATA
-    f0046000                    ; &command_done
-    200140f9                    ; LDR_X0_[X9]
-    1f0000f1                    ; CMP_X0_TO_0                 # IF 0 == command_done
-    41000054                    ; SKIP_INST_NE                # keep looping
-    f4ffff 17                   ; ^~collect_command RBRANCH
+#:escaped
+    # It is an escape char
+    3f0000 94                   ; ^~fgetc FCALL               # Read the char to drop
 
-    # Deal with line comments
-    5f0001eb                    ; CMP_X2_X1                   # if 0 < i
-    41000054                    ; SKIP_INST_NE                # It was a comment
-    e1ffff 17                   ; ^~main_loop RBRANCH
+#:word_end
+    1f0319eb                    ; CMP_X24_TO_X25              # IF i == 0
+    60fcff54                    ; B_EQ_WORD                   # Skip an empty word
+    f88600f8                    ; STR_X24_[X23]_POST_8        # tokens[i] = result
+    e1ffff 17                   ; ^~word RBRANCH
 
-#:collect_command_run
-    300000 94                   ; ^~print_command FCALL       # print the command
-    200040f9                    ; LDR_X0_[X1]                 # program = tokens[0]
-    1f0000f1                    ; CMP_X0_TO_0                 # IF NULL == program
-    41000054                    ; SKIP_INST_NE                # Some shit went down, abort
-    290000 14                   ; ^~Exit_Failure FBRANCH
+#:comment
+# Just throws away everything it reads
+    3a0000 94                   ; ^~fgetc FCALL               # C = fgetc(input)
+    1ff00371                    ; CMP_W0_TO_252               # IF C == EOF
+    e0050054                    ; B_EQ_EXIT_FROM_COMMENT      # abort hard
+    1f280071                    ; CMP_W0_TO_10                # IF C == '\n'
+    81ffff54                    ; B_NE_COMMENT                # otherwise keep looping
 
-    e10f1ff8                    ; PUSH_X1                     # Protect Tokens
+#:line_end
+    1f0319eb                    ; CMP_X24_TO_X25
+    40000054                    ; B_EQ_RUN                    # Nothing to append for an empty final word
+    f88600f8                    ; STR_X24_[X23]_POST_8        # tokens[i] = result
+
+#:run
+    df0217eb                    ; CMP_X22_TO_X23
+    40faff54                    ; B_EQ_COMMAND                # Skip a blank command
+    c1080030                    ; ADR_X1_PREFIX               # using " +> "
+    380000 94                   ; ^~File_Print FCALL          # print it
+    fa0316aa                    ; SET_X26_FROM_X22            # Walk argv without changing its base
+
+#:print_arg
+    418740f8                    ; LDR_X1_[X26]_POST_8         # using tokens[j]
+    350000 94                   ; ^~File_Print FCALL          # print it
+    41080050                    ; ADR_X1_SPACE                # using ' '
+    330000 94                   ; ^~File_Print FCALL          # print it
+    5f0317eb                    ; CMP_X26_TO_X23
+    61ffff54                    ; B_NE_PRINT_ARG              # Stop at the next unused argv slot
+    e1070010                    ; ADR_X1_NEWLINE              # using '\n'
+    2f0000 94                   ; ^~File_Print FCALL          # print it
+    c00240f9                    ; LDR_X0_[X22]                # program = tokens[0]
+    600300b4                    ; CBZ_X0_EXIT                 # IF NULL == program
     200280d2                    ; SET_X0_TO_17                # flags = SIGCHILD
     010080d2                    ; SET_X1_TO_0                 # parent_tid
     020080d2                    ; SET_X2_TO_0                 # tls
     030080d2                    ; SET_X3_TO_0                 # child_tid
     881b80d2                    ; SET_X8_TO_SYS_CLONE         # FORKing (SYS_clone)
     010000d4                    ; SYSCALL                     # int f = clone()
-    e10741f8                    ; POP_X1                      # Restore Tokens
-
     1f0000f1                    ; CMP_X0_TO_0                 # Check fork
-    4a000054                    ; SKIP_INST_GE                # IF f == -1 abort hard
-    1e0000 14                   ; ^~Exit_Failure FBRANCH
-    40000054                    ; SKIP_INST_EQ                # IF f == 0 it is child
-    090000 14                   ; ^~collect_command_parent FBRANCH
-
-    # Deal with child case
+    6b020054                    ; B_LT_EXIT                   # IF f == -1 abort hard
+    e1000054                    ; B_NE_PARENT                 # Only the child calls execve
+    c00240f9                    ; LDR_X0_[X22]                # program = tokens[0]
+    e10316aa                    ; SET_X1_FROM_X22
+    e20314aa                    ; SET_X2_FROM_X20             # third arg = envp
     a81b80d2                    ; SET_X8_TO_SYS_EXECVE        # EXECVE
-    49000018                    ; LOAD_W9_AHEAD               # third arg = envp
-    02000014                    ; SKIP_32_DATA
-    d8046000                    ; &envp
-    220140f9                    ; LDR_X2_[X9]
-                                                                # second arg = tokens, already in x1
-    200040f9                    ; LDR_X0_[X1]                 # program = tokens[0]
     010000d4                    ; SYSCALL                     # execve(program, tokens, envp);
-    140000 14                   ; ^~Exit_Failure FBRANCH      # return error
+    0c0000 14                   ; ^~exit FBRANCH              # return error
 
-#:collect_command_parent
+#:parent
     e10300aa                    ; SET_X1_FROM_X0              # id = f
     200080d2                    ; SET_X0_TO_1                 # id_type = P_PID
-    42000018                    ; LOAD_W2_AHEAD               # infop
-    02000014                    ; SKIP_32_DATA
-    10056000                    ; &info
+    e2030091                    ; SET_X2_FROM_SP              # infop
     830080d2                    ; SET_X3_TO_4                 #  options = WEXITED
-
     e80b80d2                    ; SET_X8_TO_SYS_WAITID        # WAITID
-    010000d4                    ; SYSCALL                     # waitid(P_PID, f, &info, 0);
+    010000d4                    ; SYSCALL
+    e00f40f9                    ; LDR_X0_[SP,24]              # Using status
+    c0f5ffb4                    ; CBZ_X0_COMMAND              # IF 0 == status
+    81040050                    ; ADR_X1_HARD                 # Using "Subprocess error\nABORTING HARD\n"
+    140000 94                   ; ^~File_Print FCALL          # Print it
 
-    49000018                    ; LOAD_W9_AHEAD               # Using status
-    02000014                    ; SKIP_32_DATA
-    10056000                    ; &info
-    200d40f9                    ; LDR_X0_[X9,24]
-    1f0000f1                    ; CMP_X0_TO_0                 # IF 0 == status
-    41000054                    ; SKIP_INST_NE                # Loop forever
-    b8ffff 17                   ; ^~main_loop RBRANCH
+#:done
+# program completed Successfully
+    000080d2                    ; SET_X0_TO_0                 # All is well
 
-                                                                # Deal with very unhappy case
-    40000098                    ; LOAD_W0_AHEAD               # Using "Subprocess error\nABORTING HARD\n"
-    02000014                    ; SKIP_32_DATA
-    A2056000                    ; &hard
-    8c0000 94                   ; ^~File_Print FCALL          # Print it
-
-# Exit_Failure function
-# Receives nothing
-# And aborts hard
-# DOES NOT RETURN
-#:Exit_Failure
-    210080d2                    ; SET_X1_TO_1                 # All is wrong
+#:exit
     a80b80d2                    ; SET_X8_TO_SYS_EXIT          # put the exit syscall number in x8
-    010000d4                    ; SYSCALL                     # Call it a bad day
-
-
-# print_command function
-# Recieves tokens[j] in X1 and tokens[i] in X2
-# Modifies X0
-#:print_command
-    fe0f1ff8                    ; PUSH_LR
-    e10f1ff8                    ; PUSH_X1                     # Protect X1
-    40000098                    ; LOAD_W0_AHEAD               # using " +> "
-    02000014                    ; SKIP_32_DATA
-    9D056000                    ; &prefix
-    830000 94                   ; ^~File_Print FCALL          # print it
-#:print_command_loop
-    200040f9                    ; LDR_X0_[X1]                 # using tokens[j]
-    810000 94                   ; ^~File_Print FCALL          # print it
-    21200091                    ; ADD_X1_X1_8                 # j = j + 1
-    000480d2                    ; SET_X0_TO_32                # using ' '
-    900000 94                   ; ^~fputc FCALL               # print it
-    3f0002eb                    ; CMP_X1_X2                   # IF j < i
-    40000054                    ; SKIP_INST_EQ                # otherwise keep looping
-    f9ffff 17                   ; ^~print_command_loop RBRANCH
-
-    400180d2                    ; SET_X0_TO_10                # using '\n'
-    8b0000 94                   ; ^~fputc FCALL               # print it
-    e10741f8                    ; POP_X1                      # Restore X1
-    fe0741f8                    ; POP_LR
-    c0035fd6                    ; RETURN
-
-
-# collect_token function
-# Recieves nothing
-# Overwrites X0
-# Uses X0 as C, X1 as token and X2 as token[i]
-#:collect_token
-    fe0f1ff8                    ; PUSH_LR
-    e10f1ff8                    ; PUSH_X1                     # Protect X1
-    e20f1ff8                    ; PUSH_X2                     # Protect X2
-    49000018                    ; LOAD_W9_AHEAD               # Using max_string
-    02000014                    ; SKIP_32_DATA
-    00056000                    ; &max_string
-    200140f9                    ; LDR_X0_[X9]
-    4d0000 94                   ; ^~malloc FCALL              # allocate space
-    e10300aa                    ; SET_X1_FROM_X0              # token = malloc(max_string);
-    e20300aa                    ; SET_X2_FROM_X0              # i = 0; set token[i]
-
-#:collect_token_loop
-    570000 94                   ; ^~fgetc FCALL               # c = fgetc(input);
-    1f1000b1                    ; CMP_X0_TO_MINUS_4           # if C == EOF
-    41000054                    ; SKIP_INST_NE                # We are done
-    860000 14                   ; ^~Done FBRANCH
-
-    1f8000f1                    ; CMP_X0_TO_32                # IF C == ' '
-    41000054                    ; SKIP_INST_NE                # Space terminates token
-    240000 14                   ; ^~collect_token_done FBRANCH
-
-    1f2400f1                    ; CMP_X0_TO_9                 # IF C == '\t'
-    41000054                    ; SKIP_INST_NE                # tab terminates token
-    210000 14                   ; ^~collect_token_done FBRANCH
-
-    1f2800f1                    ; CMP_X0_TO_10                # IF C == '\n'
-    40000054                    ; SKIP_INST_EQ                # otherwise check next
-    070000 14                   ; ^~collect_token_string FBRANCH
-
-    # It is a newline
-    200080d2                    ; SET_X0_TO_1                 # Using 1
-    49000018                    ; LOAD_W9_AHEAD               # Set command_done = TRUE
-    02000014                    ; SKIP_32_DATA
-    f0046000                    ; &command_done
-    200100f9                    ; STR_X0_[X9]
-    180000 14                   ; ^~collect_token_done FBRANCH # Be done
-
-#:collect_token_string
-    1f8800f1                    ; CMP_X0_TO_34                # IF C == '\"'
-    40000054                    ; SKIP_INST_EQ                # otherwise check next
-    030000 14                   ; ^~collect_token_comment FBRANCH
-
-    # It is a RAW STRING
-    1d0000 94                   ; ^~collect_string FCALL      # Get the rest of the string
-    130000 14                   ; ^~collect_token_done FBRANCH # Be done
-
-#:collect_token_comment
-    1f8c00f1                    ; CMP_X0_TO_35                # IF C == '#'
-    40000054                    ; SKIP_INST_EQ                # otherwise check next
-    080000 14                   ; ^~collect_token_escape FBRANCH
-
-# It is a line comment
-    250000 94                   ; ^~collect_comment FCALL     # Read it all
-    200080d2                    ; SET_X0_TO_1                 # Using 1
-    49000018                    ; LOAD_W9_AHEAD               # Set command_done = TRUE
-    02000014                    ; SKIP_32_DATA
-    f0046000                    ; &command_done
-    200100f9                    ; STR_X0_[X9]
-    090000 14                   ; ^~collect_token_done FBRANCH # Be done
-
-#:collect_token_escape
-    1f7001f1                    ; CMP_X0_TO_92                # IF C == '\\'
-    40000054                    ; SKIP_INST_EQ                # otherwise just store it
-    030000 14                   ; ^~collect_token_other FBRANCH
-
-    # It is an escape char
-    320000 94                   ; ^~fgetc FCALL               # Read the char to drop
-    040000 14                   ; ^~collect_token_done FBRANCH # Be done
-
-#:collect_token_other
-    40000039                    ; STR_BYTE_W0_[X2]            # token[i] = C
-    42040091                    ; ADD_X2_X2_1                 # i = i + 1
-    d7ffff 17                   ; ^~collect_token_loop RBRANCH # Keep going
-
-#:collect_token_done
-    3f0002eb                    ; CMP_X1_X2                   # IF i == 0
-    40000054                    ; SKIP_INST_EQ                # otherwise return the token
-    020000 14                   ; ^~collect_token_good FBRANCH
-    010080d2                    ; SET_X1_TO_0                 # token = NULL
-
-#:collect_token_good
-    e00301aa                    ; SET_X0_FROM_X1              # Return token
-    e20741f8                    ; POP_X2                      # Restore X2
-    e10741f8                    ; POP_X1                      # Restore X1
-    fe0741f8                    ; POP_LR
-    c0035fd6                    ; RETURN
-
-
-# collect_string function
-# Recieves target[index] in X2
-# Modifies X0
-# Uses X0 as C
-#:collect_string
-    fe0f1ff8                    ; PUSH_LR
-#:collect_string_loop
-    230000 94                   ; ^~fgetc FCALL               # C = fgetc(input)
-    1f1000b1                    ; CMP_X0_TO_MINUS_4           # if C == EOF
-    41000054                    ; SKIP_INST_NE                # Something went horribly wrong
-    a9ffff 17                   ; ^~Exit_Failure RBRANCH
-
-    1f8800f1                    ; CMP_X0_TO_34                # IF C == '\"'
-    41000054                    ; SKIP_INST_NE                # be done
-    040000 14                   ; ^~collect_string_done FBRANCH
-
-    # deal with inside of string
-    40000039                    ; STR_BYTE_W0_[X2]            # target[index] = C
-    42040091                    ; ADD_X2_X2_1                 # index = index + 1
-    f7ffff 17                   ; ^~collect_string_loop RBRANCH # Keep going
-
-#:collect_string_done
-    fe0741f8                    ; POP_LR
-    c0035fd6                    ; RETURN
-
-
-# collect_comment function
-# Recieves nothing
-# Modifies X0
-# uses X0 as Int C
-# Just throws away everything it reads
-#:collect_comment
-    fe0f1ff8                    ; PUSH_LR
-#:collect_comment_loop
-    160000 94                   ; ^~fgetc FCALL               # C = fgetc(input)
-    1f1000b1                    ; CMP_X0_TO_MINUS_4           # IF C == EOF
-    41000054                    ; SKIP_INST_NE                # abort hard
-    9cffff 17                   ; ^~Exit_Failure RBRANCH
-
-    1f2800f1                    ; CMP_X0_TO_10                # IF C == '\n'
-    40000054                    ; SKIP_INST_EQ                # otherwise keep looping
-    faffff 17                   ; ^~collect_comment_loop RBRANCH
-    fe0741f8                    ; POP_LR
-    c0035fd6                    ; RETURN
+    010000d4                    ; SYSCALL
 
 
 # Malloc isn't actually required if the program being built fits in the initial memory
 # However, it doesn't take much to add it.
-# Requires [MALLOC] to be initialized and X0 to have the number of desired bytes
+# Requires X21 to hold the current brk and X0 to have the number of desired bytes
+# Returns the old brk in X0
 #:malloc
-    e10f1ff8                    ; PUSH_X1                     # Protect X1
-    49000018                    ; LOAD_W9_AHEAD
-    02000014                    ; SKIP_32_DATA
-    08056000                    ; &MALLOC
-    210140f9                    ; LDR_X1_[X9]                 # Using the current pointer
-    e10f1ff8                    ; PUSH_X1                     # Save to return later
-    0000018b                    ; ADD_X0_X0_X1                # Request the number of desired bytes
+    e90315aa                    ; SET_X9_FROM_X21             # Save to return later
+    0000158b                    ; ADD_X0_X0_X21               # Request the number of desired bytes
     c81a80d2                    ; SET_X8_TO_SYS_BRK           # the Syscall # for SYS_BRK
     010000d4                    ; SYSCALL                     # call the Kernel
-    200100f9                    ; STR_X0_[X9]                 # Update pointer
-    e00741f8                    ; POP_X0
-    e10741f8                    ; POP_X1                      # Restore X1
+    f50300aa                    ; SET_X21_FROM_X0             # Update pointer
+    e00309aa                    ; SET_X0_FROM_X9              # Return the old break
     c0035fd6                    ; RETURN
 
 
 # fgetc function
-# Loads FILE* from [script]
-# Returns -4 (EOF) or char in X0
+# Loads the script fd from X19
+# Returns a byte in W0, or 0xFC on EOF
 #:fgetc
-    e10f1ff8                    ; PUSH_X1                     # Protect X1
-    e20f1ff8                    ; PUSH_X2                     # Protect X2
-    60008092                    ; SET_X0_TO_MINUS_4           # Put EOF in x0
-    e00f1ff8                    ; PUSH_X0                     # Assume bad (If nothing read, value will remain EOF)
-    e1030091                    ; SET_X1_FROM_SP              # Get stack address
-    49000018                    ; LOAD_W9_AHEAD               # Where are we reading from
-    02000014                    ; SKIP_32_DATA
-    e0046000                     ; &script
-    200140f9                    ; LDR_X0_[X9]
+    e00313aa                    ; SET_X0_FROM_X19             # Read from the script
+    e1030291                    ; ADD_X1_SP_128               # Byte buffer beyond siginfo
+    220080d2                    ; SET_X2_TO_1
+    891f8052                    ; SET_W9_TO_252               # Leave 0xFC in the buffer if read returns no byte
+    29000039                    ; STRB_W9_[X1]
     e80780d2                    ; SET_X8_TO_SYS_READ          # the syscall number for read
-    220080d2                    ; SET_X2_TO_1                 # set the size of chars we want
-
     010000d4                    ; SYSCALL                     # call the Kernel
-
-    e00741f8                    ; POP_X0                      # Get either char or EOF
-    1f1000b1                    ; CMP_X0_TO_MINUS_4           # Check for EOF
-    41000054                    ; SKIP_INST_NE                # Return as is
-    020000 14             ; ^~fgetc_done FBRANCH
-    001c4092                    ; AND_X0_X0_0xFF              # Make it useful
-#:fgetc_done
-    e20741f8                    ; POP_X2                      # Restore X2
-    e10741f8                    ; POP_X1                      # Restore X1
+    20004039                    ; LDR_BYTE_W0_[X1]            # Return the byte as an unsigned value
     c0035fd6                    ; RETURN
 
 
 # File_Print function
-# Receives CHAR* in X0
-# calls fputc for every non-null char
+# Receives CHAR* in X1
+# writes every non-null char to stdout
 #:File_Print
-    fe0f1ff8                    ; PUSH_LR
-    e10f1ff8                    ; PUSH_X1                     # Protect X1
-    e20f1ff8                    ; PUSH_X2                     # Protect X2
-    e10300aa                    ; SET_X1_FROM_X0              # Protect S
-    1f0000f1                    ; CMP_X0_TO_0                 # Protect against nulls
-    41000054                    ; SKIP_INST_NE                # Simply don't try to print them
-    080000 14                   ; ^~File_Print_Done FBRANCH
+    210100b4                    ; CBZ_X1_FILE_PRINT_DONE      # Protect against nulls
+    220080d2                    ; SET_X2_TO_1                 # set the size of chars we want
+    080880d2                    ; SET_X8_TO_SYS_WRITE         # the syscall number for write
+
 #:File_Print_Loop
     20004039                    ; LDR_BYTE_W0_[X1]            # Read byte
-    1f0000f1                    ; CMP_X0_TO_0                 # Check for NULL
-    41000054                    ; SKIP_INST_NE                # Stop at NULL
-    040000 14                   ; ^~File_Print_Done FBRANCH
-
-    070000 94                  ; ^~fputc FCALL               # write it
+    a0000034                    ; CBZ_W0_FILE_PRINT_DONE      # Check for NULL
+    200080d2                    ; SET_X0_TO_1                 # Write to target file
+    010000d4                    ; SYSCALL                     # call the Kernel
     21040091                    ; ADD_X1_X1_1                 # S = S + 1
-    faffff 17        ; ^~File_Print_Loop RBRANCH   # Keep going
+    fbffff 17                   ; ^~File_Print_Loop RBRANCH   # Keep going
 
 #:File_Print_Done
-    e20741f8                    ; POP_X2                      # Restore X2
-    e10741f8                    ; POP_X1                      # Restore X1
-    fe0741f8                    ; POP_LR
     c0035fd6                    ; RETURN
-
-
-# fputc function
-# receives CHAR in X0 and load FILE* from stdout
-# writes char and returns
-#:fputc
-    e10f1ff8                    ; PUSH_X1                     # Protect X1
-    e20f1ff8                    ; PUSH_X2                     # Protect X2
-
-    e00f1ff8                    ; PUSH_X0                     # We are writing x0
-    e1030091                    ; SET_X1_FROM_SP              # Get stack address
-    200080d2                    ; SET_X0_TO_1                 # Write to target file
-    080880d2                    ; SET_X8_TO_SYS_WRITE         # the syscall number for write
-    220080d2                    ; SET_X2_TO_1                 # set the size of chars we want
-    010000d4                    ; SYSCALL                     # call the Kernel
-    e00741f8                    ; POP_X0                      # Restore stack
-    e20741f8                    ; POP_X2                      # Restore X2
-    e10741f8                    ; POP_X1                      # Restore X1
-    c0035fd6                    ; RETURN
-
-
-#:Done
-# program completed Successfully
-    000080d2                    ; SET_X0_TO_0                 # All is well
-    a80b80d2                    ; SET_X8_TO_SYS_EXIT          # put the exit syscall number in x0
-    010000d4                    ; SYSCALL                     # Call it a good day
-
-#:ELF_data
-#:envp
-    0000000000000000        ; NULL64
-#:script
-    0000000000000000        ; NULL64
-#:tokens
-    0000000000000000        ; NULL64
-#:command_done
-    0000000000000000        ; NULL64
-#:max_args
-    00080000 00000000       ; %2048 %0               # 256 * sizeof(char*)
-#:max_string
-    00100000 00000000       ; %4096 %0               # 4096 * sizeof(char)
-#:MALLOC
-    0000000000000000        ; NULL64
-
-#:info
-    0000000000000000 0000000000000000 0000000000000000 0000000000000000     ; NULL64 NULL64 NULL64 NULL64
-    0000000000000000 0000000000000000 0000000000000000 0000000000000000     ; NULL64 NULL64 NULL64 NULL64
-    0000000000000000 0000000000000000 0000000000000000 0000000000000000     ; NULL64 NULL64 NULL64 NULL64
-    0000000000000000 0000000000000000 0000000000000000 0000000000000000     ; NULL64 NULL64 NULL64 NULL64
-
 #:default_file
     6B 61 65 6D 2E 61 61 72 63 68 36 34 00  ; "kaem.aarch64"
 #:prefix
     20 2B 3E 20 00              ; " +> "
+#:space
+    20 00                       ; " "
+#:newline
+    0A 00                       ; "\n"
 #:hard
     53 75 62 70 72 6F 63 65 73 73 20 65 72 72 6F 72 0A  ; "Subprocess error"
     41 42 4F 52 54 49 4E 47 20 48 41 52 44 0A           ; "ABORTING HARD"
